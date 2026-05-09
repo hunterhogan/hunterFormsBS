@@ -186,7 +186,7 @@ class MelBandRoformer(Module):
 		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,  # noqa: ARG002
 		heads: int = 8,
 		linear_transformer_depth: int = 0,
-		mask_estimator_depth: int = 1,
+		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
 		mlp_expansion_factor: int = 4,
@@ -259,7 +259,7 @@ class MelBandRoformer(Module):
 		linear_transformer_depth : int = 0
 			Depth of the optional linear-attention block inserted before the time attention block and
 			the frequency attention block inside each hierarchical layer.
-		mask_estimator_depth : int = 1
+		mask_estimator_depth : int | None = None
 			Depth of the per-band MLP inside each mask-estimator head.
 		mask_filter_bank : Tensor | None = None
 			Custom band-membership `Tensor` with shape `(band, freq)`. Entry `(bandIndex,
@@ -366,6 +366,7 @@ class MelBandRoformer(Module):
 		self.skip_connection: bool = skip_connection
 
 		if mask_filter_bank is None:
+			mask_estimator_depth = mask_estimator_depth or 1
 			num_bands = num_bands or 60
 			sample_rate = sample_rate or 44100
 			filter_bank: Tensor = torch.from_numpy(filters.mel(sr=sample_rate, n_fft=stft_n_fft, n_mels=num_bands)) # pyright: ignore[reportUnknownMemberType]
@@ -428,7 +429,7 @@ class MelBandRoformer(Module):
 		self.band_split: BandSplit = BandSplit(dim=dim, dim_inputs=freqs_per_bands_with_complex)
 		self.mask_estimators: ModuleList = nn.ModuleList([])
 		for _stem_index in loops(self.num_stems):
-			self.mask_estimators.append(MaskEstimator(dim, freqs_per_bands_with_complex, depth=mask_estimator_depth, mlp_expansion_factor=mlp_expansion_factor))
+			self.mask_estimators.append(MaskEstimator(dim, freqs_per_bands_with_complex, depth=raiseIfNone(mask_estimator_depth, f'I received {mask_estimator_depth = }, but I need a type `int` > 0. If you are migrating a `BSRoformer` checkpoint and the old default value was `2`, then you probably want `mask_estimator_depth = 1` in this package.'), mlp_expansion_factor=mlp_expansion_factor))
 
 		freqs: int = stft_n_fft // 2 + 1
 		repeated_freq_indices: Tensor = repeat(torch.arange(freqs), 'f -> b f', b=num_bands)

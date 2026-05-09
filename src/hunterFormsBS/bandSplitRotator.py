@@ -191,7 +191,7 @@ class BandSplitRotator(Module):
 		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,
 		heads: int = 8,
 		linear_transformer_depth: int = 0,
-		mask_estimator_depth: int = 1,
+		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
 		mlp_expansion_factor: int = 4,
@@ -264,7 +264,7 @@ class BandSplitRotator(Module):
 		linear_transformer_depth : int = 0
 			Depth of the optional linear-attention block inserted before the time attention block and
 			the frequency attention block inside each hierarchical layer.
-		mask_estimator_depth : int = 1
+		mask_estimator_depth : int | None = None
 			Depth of the per-band MLP inside each mask-estimator head. This unified implementation
 			defaults to `1`. Other implementations of `BSRoformer` assume `2`, so ports from older
 			setups should change their configuration to set `mask_estimator_depth=1`.
@@ -398,6 +398,7 @@ class BandSplitRotator(Module):
 				# Tantamount to `BSRoformer = True`, by default.  # noqa: ERA001
 				num_bands = num_bands or len(freqs_per_bands)
 				filter_bank: Tensor = repeat_interleave(arange(num_bands), tensor(freqs_per_bands))
+				mask_estimator_depth = mask_estimator_depth or 1
 				mask_filter_bank = filter_bank[None, :] == arange(num_bands)[:, None]
 				if final_norm is None:
 					final_norm = True
@@ -458,7 +459,7 @@ class BandSplitRotator(Module):
 		self.band_split: BandSplit = BandSplit(dim=dim, dim_inputs=freqs_per_bands_with_complex)
 		self.mask_estimators: ModuleList = nn.ModuleList([])
 		for _stem_index in loops(self.num_stems):
-			self.mask_estimators.append(MaskEstimator(dim, freqs_per_bands_with_complex, depth=mask_estimator_depth, mlp_expansion_factor=mlp_expansion_factor))
+			self.mask_estimators.append(MaskEstimator(dim, freqs_per_bands_with_complex, depth=raiseIfNone(mask_estimator_depth, f'I received {mask_estimator_depth = }, but I need a type `int` > 0. If you are migrating a `BSRoformer` checkpoint and the old default value was `2`, then you probably want `mask_estimator_depth = 1` in this package.'), mlp_expansion_factor=mlp_expansion_factor))
 
 		freqs: int = stft_n_fft // 2 + 1
 		repeated_freq_indices: Tensor = repeat(torch.arange(freqs), 'f -> b f', b=num_bands)
