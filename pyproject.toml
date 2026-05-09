@@ -37,6 +37,7 @@ dependencies = [
   "hyper-connections>=0.4.10",
   "librosa>=0.11.0",
   "more-itertools",
+  "opt-einsum>=3.4.0",
   "packaging",
   "pope-pytorch",
   "rotary-embedding-torch",
