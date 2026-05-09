@@ -33,10 +33,10 @@ jobs:
           dictionaryProject = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']
           version = dictionaryProject['version']
           name = dictionaryProject['name']
-          #   if version not in json.loads(urllib.request.urlopen(f'https://pypi.org/pypi/{name}/json').read()).get('releases', []):
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as appendStream:
-            appendStream.write('should_publish=true\n')
-            appendStream.write(f'url=https://pypi.org/project/{name}/{version}\n')
+          if version not in json.loads(urllib.request.urlopen(f'https://pypi.org/pypi/{name}/json').read()).get('releases', []):
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as appendStream:
+              appendStream.write('should_publish=true\n')
+              appendStream.write(f'url=https://pypi.org/project/{name}/{version}\n')
           "
 
   pypi-publish:

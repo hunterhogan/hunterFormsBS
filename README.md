@@ -4,8 +4,8 @@ A flexible frequency-band splitter for music source separation, organized around
 
 Instead of treating `BSRoformer` and `MelBandRoformer` as separate architectures, this package treats them as different band-layout configurations of one core design centered on `BandSplitRotator`.
 
-[![pip install hunterFormsBS](https://img.shields.io/badge/pip_install-torch--einops--kit-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
-[![uv add hunterFormsBS](https://img.shields.io/badge/uv_add-torch--einops--kit-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
+[![pip install hunterFormsBS](https://img.shields.io/badge/pip_install-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
+[![uv add hunterFormsBS](https://img.shields.io/badge/uv_add-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
 
 The codebase is implemented in PyTorch, fully typed (`py.typed`), and designed for modular reuse so research ideas (for example PoPE or custom filter banks) can be integrated without splitting into parallel implementations.
 
