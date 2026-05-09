@@ -1,0 +1,61 @@
+# See https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
+
+name: Make PyPI Release
+
+on:
+  workflow_run:
+    workflows: ["Python Tests"]
+    types: [completed]
+  workflow_dispatch:
+  release:
+    types: [published, released]
+
+permissions:
+  contents: read
+
+jobs:
+  check-version:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' || github.event_name == 'release' }}
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.check.outputs.should_publish }}
+      url: ${{ steps.check.outputs.url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '>=3.13'
+      - name: Check PyPI version
+        id: check
+        run: |
+          python -c "
+          import json, os, pathlib, tomllib, urllib.request
+          dictionaryProject = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']
+          version = dictionaryProject['version']
+          name = dictionaryProject['name']
+          #   if version not in json.loads(urllib.request.urlopen(f'https://pypi.org/pypi/{name}/json').read()).get('releases', []):
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as appendStream:
+            appendStream.write('should_publish=true\n')
+            appendStream.write(f'url=https://pypi.org/project/{name}/{version}\n')
+          "
+
+  pypi-publish:
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: ${{ needs.check-version.outputs.url }}
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '>=3.13'
+      - run: pipx run build --sdist
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e #v1.13.0
+        with:
+          attestations: false
+          packages-dir: dist/

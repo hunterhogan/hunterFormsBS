@@ -1,0 +1,39 @@
+name: Make GitHub Release
+
+on:
+  workflow_run:
+    workflows: ['Python Tests']
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '>=3.13'
+      - name: Ensure GitHub Release exists
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python -c "
+          import json, os, pathlib, tomllib, urllib.error, urllib.request
+          tag=tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version']
+          repo=os.environ['GITHUB_REPOSITORY']
+          token=os.environ['GITHUB_TOKEN']
+          url=f'https://api.github.com/repos/{repo}/releases'
+          headers={'Authorization': f'Bearer {token}', 'X-GitHub-Api-Version': '2026-03-10'}
+          try:
+            urllib.request.urlopen(urllib.request.Request(f'{url}/tags/{tag}', headers=headers))
+          except urllib.error.HTTPError as thisIsAStupidSystem:
+            if thisIsAStupidSystem.code != 404:
+              raise
+          urllib.request.urlopen(urllib.request.Request(url,json.dumps({'tag_name': tag, 'name': tag}).encode(),headers, method='POST'))
+          "
