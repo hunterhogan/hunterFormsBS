@@ -24,10 +24,16 @@ authors:
 - given-names: Roman
   family-names: Solovyev (ZFTurbo)
 cff-version: 1.2.0
+commit: 33c83b86fa7976092c4a9ba9e19232fd80b3e15b
 contact:
 - given-names: Hunter
   family-names: Hogan
   email: HunterHogan@pm.me
+date-released: '2026-05-09'
+identifiers:
+- type: url
+  value: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.1.0
+  description: The URL for hunterFormsBS 0.1.0.
 keywords:
 - artificial intelligence
 - audio source separation
@@ -37,6 +43,7 @@ license: CC-BY-NC-4.0
 message: Cite this software with the metadata in this file.
 repository: https://github.com/hunterhogan/hunterFormsBS.git
 repository-artifact: https://pypi.org/project/hunterformsbs/0.1.0/
+repository-code: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.1.0
 title: hunterFormsBS
 url: https://github.com/hunterhogan/hunterFormsBS
 version: 0.1.0
