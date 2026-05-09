@@ -1,0 +1,76 @@
+[project]
+name = "hunterFormsBS"
+version = "0.1.0"
+description = "Flexible frequency-band splitter for music source separation. The BandSplitRoformer module supports BSRoformer, MelBandRoformer, and custom overlapping or non-overlapping band configurations. Fully typed, modular, and documented, including migration help, usage, and paper references. PyTorch; CUDA-accelerated."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "CC-BY-NC-4.0"
+license-files = ["LICEN[CS]E*"]
+authors = [
+  { name = "Hunter Hogan", email = "HunterHogan@pm.me" },
+  { name = "Phil Wang", email = "lucidrains@gmail.com" },
+  { name = "Roman Solovyev (ZFTurbo)" },
+]
+maintainers = [{ name = "Hunter Hogan", email = "HunterHogan@pm.me" }]
+keywords = [
+  "artificial intelligence",
+  "audio source separation",
+  "machine learning",
+  "music source separation",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Environment :: GPU :: NVIDIA CUDA",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Natural Language :: English",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Typing :: Typed",
+]
+dependencies = [
+  "einops>=0.8.2",
+  "hunterMakesPy>=0.5.3",
+  "hyper-connections>=0.4.10",
+  "librosa>=0.11.0",
+  "more-itertools",
+  "packaging",
+  "pope-pytorch",
+  "rotary-embedding-torch",
+  "torch>=2.0.0",
+  "torch-einops-kit>=0.1.1",
+  "Z0Z_tools>=1.0.2",
+]
+
+[project.urls]
+Context7 = "https://context7.com/hunterhogan/hunterformsbs"
+Donate = "https://www.patreon.com/integrated"
+Download = "https://pypi.org/project/hunterFormsBS"
+Homepage = "https://github.com/hunterhogan/hunterFormsBS"
+Issues = "https://github.com/hunterhogan/hunterFormsBS/issues"
+Repository = "https://github.com/hunterhogan/hunterFormsBS.git"
+
+[dependency-groups]
+testing = ["pytest"]
+
+[build-system]
+requires = ["uv_build>=0.11.8,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.updateCitation]
+filenameCitationDOTcff = "CITATION.cff"
+pathFilenameCitationSSOT = "citations/CITATION.cff"
+
+[tool.uv]
+default-groups = ["testing"]
+
+[tool.uv.sources]
+rotary-embedding-torch = { git = "https://github.com/hunterhogan/rotary-embedding-torch.git" }
+pope-pytorch = { git = "https://github.com/hunterhogan/PoPE-pytorch.git" }
+
+[tool.uv.build-backend]
+module-name = "hunterFormsBS"
+module-root = "src"

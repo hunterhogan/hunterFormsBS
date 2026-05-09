@@ -1,0 +1,13 @@
+# What to do when a coding task is finished
+- Keep diffs minimal and preserve intentional minimal-diff wrappers unless cleanup is explicitly requested.
+- Do not normalize `bs_roformer.py` / `mel_band_roformer.py` just because the identifiers or flow are ugly; some of that ugliness is deliberate for comparison and drop-in compatibility.
+- Use only the task-relevant instruction file / specialized agent. Do not load every `.github/HH-*.md` instruction by default.
+- Prefer MCP tools over terminal whenever the MCP route covers the need, especially Pylance / Problems for diagnostics and GitHub MCP for repository operations.
+- For changed Python files:
+  - run `isort` on the touched files;
+  - run Ruff lint;
+  - safe Ruff auto-fix is allowed, unsafe fixes are not;
+  - do not run a blanket formatter such as `ruff format`;
+  - use `ty` or Problems / Pylance for type-checking; do not assume CLI `pyright`;
+  - run `pytest` from the venv or with `\.venv\Scripts\python.exe` when tests are relevant.
+- Because automated test coverage is still light, inference-facing changes should be double-checked against real import / usage paths, especially `BandSplitRotator`.

@@ -1,0 +1,16 @@
+# Style and conventions
+- Base formatting from `.editorconfig`:
+  - Python: tabs, LF, final newline, trim trailing whitespace, max line length 140.
+  - Markdown / TOML / YAML: 2 spaces, LF, final newline, trim trailing whitespace, max line length 102.
+- Ruff config prefers single quotes, tab indentation, and no magic trailing commas.
+- No general Python formatter is part of the normal workflow. Do not run `ruff format`, Black, or similar blanket formatters unless explicitly requested.
+- `isort` is the normal import formatter and can always be run on targeted `*.py` files.
+- Ruff linting is normal; safe auto-fix is allowed; unsafe fixes are not allowed.
+- `pyrightconfig.json` exists for Pylance in VS Code. Do not assume CLI `pyright` is installed or expected.
+- `ty` is installed. In editor work, prefer Problems / Pylance MCP and other MCP diagnostics before reaching for terminal-based type-checking.
+- Important `.github/` instruction files are accurate, but do not load all of them by default.
+- Instruction-routing rule:
+  - Except for `HH-post-defensive.md` and the general Python instructions, each instruction file has a 1:1 specialized agent.
+  - Load only the domain-relevant instruction / agent for the task: docstrings, formatting, identifiers, status messages, syntactic clarity, type annotations, testing, or code generation.
+  - Do not spend tokens on docstring or other domain instructions when the task does not touch that domain.
+- Compatibility modules intentionally preserve some upstream naming and flow for minimal diff. Preserve that unless the task explicitly asks for cleanup or redesign.

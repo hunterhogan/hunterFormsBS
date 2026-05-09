@@ -1,0 +1,29 @@
+# Suggested commands for Windows development
+- Sync / create the environment:
+  - `uv sync`
+- Terminal rule:
+  - For repo-installed tools such as `pytest` or `isort`, activate the project venv first or use the explicit interpreter path.
+- Tests:
+  - `\.venv\Scripts\python.exe -m pytest`
+- Import formatting on changed Python files:
+  - `\.venv\Scripts\python.exe -m isort path\to\file.py`
+- Ruff lint:
+  - Use the user's uv-managed Ruff invocation, for example `uv run ruff check .`
+- Ruff safe auto-fix:
+  - Safe fixes are OK, for example `uv run ruff check . --fix`
+  - Do not use unsafe fixes.
+- Type-checking / diagnostics:
+  - Prefer Problems / Pylance MCP in VS Code.
+  - Use the installed `ty` command through the user's usual uv-managed setup when a CLI check is still useful.
+  - Do not assume CLI `pyright` is installed.
+- Formatting:
+  - Do not run a general Python formatter such as `ruff format`.
+- MCP-first workflow:
+  - Prefer MCP tools over terminal when possible, especially Pylance / Problems for diagnostics and GitHub MCP for repository tasks.
+- GitHub CLI:
+  - `gh` is installed.
+- Useful PowerShell commands:
+  - `Set-Location`, `Get-ChildItem`, `Get-ChildItem -Recurse`, `Get-Content`, `Select-String`, `Test-Path`, `git status`, `git diff`.
+- Package invocation:
+  - Primary intended entrypoint is `BandSplitRotator` from Python imports.
+  - `bs_roformer.py` and `mel_band_roformer.py` are secondary comparison / compatibility modules, not the main intended package entrypoint.

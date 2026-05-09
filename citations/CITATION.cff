@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+title: hunterMakesPy
+abstract: >-
+  BS-RoFormer and Mel-Band RoFormer are leading transformer architectures for music source separation
+  in the frequency domain, yet they are typically implemented as separate model families despite
+  sharing the same band-splitting front end, hierarchical attention stack, and complex-mask output
+  head. The sole structural difference is the band-membership filter bank: in the non-overlapping
+  BS-RoFormer layout each STFT frequency bin belongs to exactly one band, whereas in the overlapping
+  mel-band layout each bin may belong to multiple bands and its reconstructed mask is averaged over
+  the contributing bands. hunterFormsBS makes this observation precise by parametrizing both
+  architectures with a single Boolean filter-bank matrix F in {0,1}^{B x N_f}, where B is the number
+  of bands and N_f is the number of STFT frequency bins, and exposing that parameter through one
+  unified separator, BandSplitRotator. The model supports rotary (RoPE) and polar-coordinate (PoPE)
+  positional embeddings, an optional XCiT-style cross-covariance linear-attention pre-block, and a
+  multi-resolution complex-STFT training loss. Transition wrappers preserve the constructor signatures
+  and defaults of the upstream BSRoformer and MelBandRoformer classes so that existing training
+  pipelines require minimal modification.

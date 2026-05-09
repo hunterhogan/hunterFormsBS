@@ -1,0 +1,13 @@
+# hunterFormsBS overview
+- Python package under `src/hunterFormsBS` for typed PyTorch audio / music source-separation models.
+- Packaging facts from `pyproject.toml`: Python `>=3.12`, build backend `uv_build`, typed package (`Typing :: Typed`).
+- Main runtime dependencies include `torch`, `einops`, `pope-pytorch`, `rotary-embedding-torch`, and `torch-einops-kit`.
+- Top-level exports in `src/hunterFormsBS/__init__.py`: `BandSplitRotator`.
+- Key modules:
+  - `attend.py`: attention and transformer building blocks.
+  - `bandSplit.py`: `BandSplit`, `MaskEstimator`, `lossComputation`, and `DEFAULT_FREQS_PER_BANDS`.
+  - `bandSplitRotator.py`: `BandSplitRotator` class.
+  - `bs_roformer.py` / `mel_band_roformer.py`: compatibility-oriented model modules.
+  - `*_experimental.py`: experimental variants.
+  - `theTypes.py`: typed config / helper classes.
+- README includes a migration note about `mask_estimator_depth` when loading checkpoints created with older `BSRoFormer` configs.

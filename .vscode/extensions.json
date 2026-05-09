@@ -1,0 +1,11 @@
+{
+	"recommendations": [
+		"charliermarsh.ruff",
+		"davidanson.vscode-markdownlint",
+		"dnut.rewrap-revived",
+		"editorconfig.editorconfig",
+		"ms-python.isort",
+		"streetsidesoftware.code-spell-checker",
+		"tombi-toml.tombi",
+	]
+}
