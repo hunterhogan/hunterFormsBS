@@ -53,15 +53,15 @@ where $B$ is the number of bands and $N_f$ is the number of STFT frequency bins.
 
 - In a non-overlapping BS-style layout, each frequency bin belongs to exactly one band, so
 
-  $$
-  \forall f,\; \sum_b F_{b,f} = 1.
-  $$
+$$
+\forall f,\; \sum_b F_{b,f} = 1.
+$$
 
 - In an overlapping mel-style layout, some frequency bins belong to more than one band, so
 
-  $$
-  \exists f \text{ such that } \sum_b F_{b,f} > 1.
-  $$
+$$
+\exists f \text{ such that } \sum_b F_{b,f} > 1.
+$$
 
 When bands overlap, the reconstructed mask for a frequency bin is averaged across the contributing
 bands:
