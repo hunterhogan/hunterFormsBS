@@ -30,9 +30,11 @@ References
 """
 from __future__ import annotations
 
-from collections.abc import Callable
-from torch import Tensor
-from typing import NamedTuple, TypedDict
+from typing import NamedTuple, TYPE_CHECKING, TypedDict
+
+if TYPE_CHECKING:
+	from collections.abc import Callable
+	from torch import Tensor
 
 class ComputeLoss(TypedDict):
 	"""Collect multi-resolution STFT loss settings.

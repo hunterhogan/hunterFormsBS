@@ -6,17 +6,19 @@
 from __future__ import annotations
 
 from einops import rearrange
-from hunterFormsBS import KwargsOfAttention
 from hunterFormsBS.attend import Attend, FeedForward, LinearAttention
+from hunterFormsBS.theTypes import KwargsOfAttention
 from hyper_connections import get_init_and_expand_reduce_stream_functions  # NOTE There is a newer version.
 from more_itertools import loops
 from PoPE_pytorch import flash_attn_with_pope, PoPE
-from rotary_embedding_torch import RotaryEmbedding
 from torch import nn, Tensor
 from torch.nn import Module, ModuleList
 from torch_einops_kit import default, exists
 from torch_einops_kit.scaleValues import RMSNorm
-from typing import cast
+from typing import cast, TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from rotary_embedding_torch import RotaryEmbedding
 
 class Attention(nn.Module):
 	def __init__(
@@ -135,16 +137,16 @@ class Transformer(Module):
 		first_values = None
 		if value_residual is not None:
 			for sherpa in self.layers:
-				attn: Attention | LinearAttention = cast(Attention | LinearAttention, cast(ModuleList, sherpa)[0])
-				ff: FeedForward = cast(FeedForward, cast(ModuleList, sherpa)[1])
+				attn: Attention | LinearAttention = cast("Attention | LinearAttention", cast("ModuleList", sherpa)[0])
+				ff: FeedForward = cast("FeedForward", cast("ModuleList", sherpa)[1])
 				x, next_values = attn(x, value_residual=value_residual)
 				first_values = default(first_values, next_values)
 				x = ff(x)
 		else:
 			# Compatibility with old weights
 			for sherpa in self.layers:
-				attn: Attention | LinearAttention = cast(Attention | LinearAttention, cast(ModuleList, sherpa)[0])
-				ff: FeedForward = cast(FeedForward, cast(ModuleList, sherpa)[1])
+				attn: Attention | LinearAttention = cast("Attention | LinearAttention", cast("ModuleList", sherpa)[0])
+				ff: FeedForward = cast("FeedForward", cast("ModuleList", sherpa)[1])
 				attn_out, next_values = attn(x, value_residual=value_residual)
 				first_values = default(first_values, next_values)
 				x = attn_out + x

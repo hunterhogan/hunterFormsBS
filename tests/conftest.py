@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import ModuleType
 import importlib
 import pkgutil
 import pytest
 import warnings
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+	from types import ModuleType
 
 def _discover_package_name() -> str:
 	project_root = Path(__file__).resolve().parent.parent

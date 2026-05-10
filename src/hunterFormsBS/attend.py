@@ -46,19 +46,21 @@ from __future__ import annotations
 
 from einops import rearrange
 from einops.layers.torch import Rearrange
-from hunterFormsBS import FlashAttentionConfig, KwargsOfAttention
+from hunterFormsBS.theTypes import FlashAttentionConfig, KwargsOfAttention
 from more_itertools import loops
 from packaging import version
 from PoPE_pytorch import flash_attn_with_pope, PoPE
-from rotary_embedding_torch import RotaryEmbedding
 from torch import einsum, nn, Tensor
-from torch._C import _CudaDeviceProperties
 from torch.nn import Module, ModuleList
 from torch_einops_kit import default, exists, once
 from torch_einops_kit.scaleValues import l2norm, RMSNorm
-from typing import cast
+from typing import cast, TYPE_CHECKING
 import torch
 import torch.nn.functional as F
+
+if TYPE_CHECKING:
+	from rotary_embedding_torch import RotaryEmbedding
+	from torch._C import _CudaDeviceProperties
 
 print_once = once(print)
 
@@ -176,7 +178,7 @@ class Attend(nn.Module):
 			return
 
 		device_properties = torch.cuda.get_device_properties(torch.device('cuda')) # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
-		device_properties = cast(_CudaDeviceProperties, device_properties)
+		device_properties = cast('_CudaDeviceProperties', device_properties)
 
 		if device_properties.major == 8 and device_properties.minor == 0:
 			print_once('A100 GPU detected, using flash attention if input tensor is on cuda')
@@ -1065,8 +1067,8 @@ class Transformer(Module):
 		[3] hunterFormsBS.attend.FeedForward
 		"""
 		for sherpa in self.layers:
-			attn: Attention | LinearAttention = cast(Attention | LinearAttention, cast(ModuleList, sherpa)[0])
-			ff: FeedForward = cast(FeedForward, cast(ModuleList, sherpa)[1])
+			attn: Attention | LinearAttention = cast('Attention | LinearAttention', cast('ModuleList', sherpa)[0])
+			ff: FeedForward = cast('FeedForward', cast('ModuleList', sherpa)[1])
 			x = attn(x) + x
 			x = ff(x) + x
 

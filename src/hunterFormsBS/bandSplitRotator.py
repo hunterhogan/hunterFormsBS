@@ -21,11 +21,11 @@ References
 """
 from __future__ import annotations
 
-from collections.abc import Callable
 from einops import pack, rearrange, reduce, repeat, unpack  # pyright: ignore[reportUnknownVariableType]
 from functools import partial
-from hunterFormsBS import (
-	BandSplit, ComputeLoss, DEFAULT_FREQS_PER_BANDS, KwargsSTFT, KwargsTransformer, lossComputation, MaskEstimator, Transformer)
+from hunterFormsBS.attend import Transformer
+from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, MaskEstimator
+from hunterFormsBS.theTypes import ComputeLoss, KwargsSTFT, KwargsTransformer
 from hunterMakesPy import raiseIfNone
 from librosa import filters
 from more_itertools import loops
@@ -38,9 +38,12 @@ from torch.utils.checkpoint import checkpoint  # pyright: ignore[reportUnknownVa
 from torch_einops_kit import exists
 from torch_einops_kit.einops import pack_one, unpack_one
 from torch_einops_kit.scaleValues import RMSNorm
-from typing import cast
+from typing import cast, TYPE_CHECKING
 from Z0Z_tools import halfsineTensor
 import torch
+
+if TYPE_CHECKING:
+	from collections.abc import Callable
 
 class BandSplitRotator(Module):
 	"""Separate a raw-audio mixture into stem audio with a unified BS-RoFormer and Mel-Band RoFormer core.
@@ -646,7 +649,7 @@ class BandSplitRotator(Module):
 
 		# account for stereo
 
-		x: Tensor = stft_repr[batch_arange, cast(Tensor, self.freq_indices)]
+		x: Tensor = stft_repr[batch_arange, cast('Tensor', self.freq_indices)]
 
 		# fold the complex (real and imag) into the frequencies dimension  # noqa: ERA001
 
@@ -661,12 +664,12 @@ class BandSplitRotator(Module):
 
 		store: list[Tensor | None] = [None] * len(self.layers)
 		for i, transformer_block in enumerate(self.layers):
-			layer: ModuleList = cast(ModuleList, transformer_block)
-			time_transformer: Transformer = cast(Transformer, layer[-2])
-			freq_transformer: Transformer = cast(Transformer, layer[-1])
+			layer: ModuleList = cast('ModuleList', transformer_block)
+			time_transformer: Transformer = cast('Transformer', layer[-2])
+			freq_transformer: Transformer = cast('Transformer', layer[-1])
 
 			if self.linear_transformer_depth:
-				linear_transformer: Transformer = cast(Transformer, layer[0])
+				linear_transformer: Transformer = cast('Transformer', layer[0])
 				x, ft_ps = pack([x], 'b * d')
 				if self.use_torch_checkpoint:
 					x = checkpoint(linear_transformer, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
@@ -728,12 +731,12 @@ class BandSplitRotator(Module):
 
 		# need to average the estimated mask for the overlapped frequencies
 
-		scatter_indices: Tensor = repeat(cast(Tensor, self.freq_indices), 'f -> b n f t', b=batch, n=self.num_stems, t=stft_repr.shape[-1])
+		scatter_indices: Tensor = repeat(cast('Tensor', self.freq_indices), 'f -> b n f t', b=batch, n=self.num_stems, t=stft_repr.shape[-1])
 
 		stft_repr_expanded_stems: Tensor = repeat(stft_repr, 'b 1 ... -> b n ...', n=self.num_stems)
 		masks_summed: Tensor = torch.zeros_like(stft_repr_expanded_stems).scatter_add_(2, scatter_indices, masks)
 
-		denom: Tensor = repeat(cast(Tensor, self.num_bands_per_freq), 'f -> (f r) 1', r=channels)
+		denom: Tensor = repeat(cast('Tensor', self.num_bands_per_freq), 'f -> (f r) 1', r=channels)
 
 		masks = masks_summed / denom.clamp(min=1e-8)
 
@@ -749,9 +752,9 @@ class BandSplitRotator(Module):
 			stft_repr = stft_repr.index_fill(1, tensor(0, device=device), 0.0)
 
 		try:
-			recon_audio: Tensor = cast(Callable[..., Tensor], torch.istft)(stft_repr, **self.stft_kwargs, window=stft_window, return_complex=False, length=istft_length) # pyright: ignore[reportUnknownMemberType]
+			recon_audio: Tensor = cast('Callable[..., Tensor]', torch.istft)(stft_repr, **self.stft_kwargs, window=stft_window, return_complex=False, length=istft_length) # pyright: ignore[reportUnknownMemberType]
 		except RuntimeError:
-			recon_audio = cast(Callable[..., Tensor], torch.istft)( # pyright: ignore[reportUnknownMemberType]
+			recon_audio = cast('Callable[..., Tensor]', torch.istft)( # pyright: ignore[reportUnknownMemberType]
 				stft_repr.cpu() if x_is_mps else stft_repr,
 				**self.stft_kwargs,
 				window=stft_window.cpu() if x_is_mps else stft_window,

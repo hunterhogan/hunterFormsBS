@@ -36,16 +36,18 @@ References
 """
 from __future__ import annotations
 
-from collections.abc import Sequence
 from einops import rearrange
-from hunterFormsBS import ComputeLoss, KwargsSTFT
+from hunterFormsBS.theTypes import ComputeLoss, KwargsSTFT
 from torch import nn, Tensor, tensor
 from torch.nn import Module, ModuleList
 from torch_einops_kit import default
 from torch_einops_kit.scaleValues import RMSNorm
-from typing import Literal, overload
+from typing import Literal, overload, TYPE_CHECKING
 import torch
 import torch.nn.functional as F
+
+if TYPE_CHECKING:
+	from collections.abc import Sequence
 
 DEFAULT_FREQS_PER_BANDS: tuple[int, ...] = (2,) * 24 + (4,) * 12 + (12,) * 8 + (24,) * 8 + (48,) * 8 + (128, 129)
 

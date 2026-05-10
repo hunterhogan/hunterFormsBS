@@ -28,16 +28,6 @@ theTypes
 	Typed configuration records for attention, STFT, transformer, and loss setup.
 """
 
-# isort: split
 from __future__ import annotations
 
-from hunterFormsBS.theTypes import ComputeLoss, FlashAttentionConfig, KwargsOfAttention, KwargsSTFT, KwargsTransformer
-
-# isort: split
-from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, MaskEstimator
-
-# isort: split
-from hunterFormsBS.attend import Transformer
-
-# isort: split
 from hunterFormsBS.bandSplitRotator import BandSplitRotator as BandSplitRotator
