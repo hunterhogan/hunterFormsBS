@@ -24,7 +24,7 @@ authors:
 - given-names: Roman
   family-names: Solovyev (ZFTurbo)
 cff-version: 1.2.0
-commit: 040066c054500a9d39441fb1912f70289d97cb63
+commit: 939069cd36c69a1d6d206d6a8dfa751eb6c67dfd
 contact:
 - given-names: Hunter
   family-names: Hogan
