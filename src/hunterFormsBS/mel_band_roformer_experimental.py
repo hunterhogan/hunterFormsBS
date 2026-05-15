@@ -1,17 +1,16 @@
 # pyright: reportUnknownArgumentType=false
 # pyright: reportUnknownMemberType=false
 # pyright: reportUnknownVariableType=false
-# ruff: noqa: D100, ARG002, E722 D101 D102
+# ruff: noqa: D100, ARG002, D101, D102
 from __future__ import annotations
 
 from einops import pack, rearrange, reduce, repeat, unpack  # pyright: ignore[reportUnknownVariableType]
 from functools import partial
 from hunterFormsBS.attend_experimental import Transformer
-from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, MaskEstimator
+from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, mask_filter_bank_mel_band_default, MaskEstimator
 from hunterFormsBS.theTypes import ComputeLoss, KwargsSTFT, KwargsTransformer
 from hunterMakesPy import raiseIfNone
 from hyper_connections import get_init_and_expand_reduce_stream_functions  # NOTE There is a newer version.
-from librosa import filters
 from more_itertools import loops
 from operator import mul
 from PoPE_pytorch import PoPE
@@ -88,9 +87,19 @@ class MelBandRoformer(Module):
 		if mask_filter_bank is None:
 			num_bands = num_bands or 60
 			sample_rate = sample_rate or 44100
-			filter_bank: Tensor = torch.from_numpy(filters.mel(sr=sample_rate, n_fft=stft_n_fft, n_mels=num_bands)) # pyright: ignore[reportUnknownMemberType]
-			mask_filter_bank = filter_bank > 0
-			mask_filter_bank[0, 0] = True
+			if (stft_n_fft == 2048) and (num_bands == 60) and (sample_rate == 44100):
+				mask_filter_bank = mask_filter_bank_mel_band_default
+			else:
+				message: str = (
+					f'I received `{stft_n_fft = }`, `{num_bands = }`, and `{sample_rate = }`, but '
+					'I only provide one built-in mel-band `mask_filter_bank` when `mask_filter_bank` '
+					'is `None`: `stft_n_fft == 2048`, `num_bands == 60`, and `sample_rate == 44100`. '
+					'If your checkpoint uses a different mel-band split, pass `mask_filter_bank` '
+					'explicitly. You can generate a static `mask_filter_bank` value with '
+					'`hunterFormsBS.make_static_mask_filter_bank.librosa_filters_mel`.'
+				)
+				raise ValueError(message)
+			mask_estimator_depth = mask_estimator_depth or 1
 			if final_norm is None:
 				final_norm = False
 			if norm_output is None:
@@ -206,7 +215,7 @@ class MelBandRoformer(Module):
 		# Since it's tedious to define whether we're on correct MacOS version - simple try-catch is used
 		try:
 			stft_repr: Tensor = torch.stft(raw_audio, **self.stft_kwargs, window=stft_window, return_complex=True)
-		except:
+		except RuntimeError:
 			stft_repr = torch.stft(
 				raw_audio.cpu() if x_is_mps else raw_audio,
 				**self.stft_kwargs,
@@ -340,7 +349,7 @@ class MelBandRoformer(Module):
 
 		try:
 			recon_audio: Tensor = cast('Callable[..., Tensor]', torch.istft)(stft_repr, **self.stft_kwargs, window=stft_window, return_complex=False, length=istft_length) # pyright: ignore[reportUnknownMemberType]
-		except:
+		except RuntimeError:
 			recon_audio = cast('Callable[..., Tensor]', torch.istft)( # pyright: ignore[reportUnknownMemberType]
 				stft_repr.cpu() if x_is_mps else stft_repr,
 				**self.stft_kwargs,
