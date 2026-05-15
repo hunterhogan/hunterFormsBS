@@ -141,7 +141,7 @@ class BSRoformer(Module):
 	hunterFormsBS.bandSplitRotator.BandSplitRotator
 		Unified separator that uses `BandSplit` as the band front end.
 	hunterFormsBS.mel_band_roformer.MelBandRoformer
-		Specialized overlapped mel-band wrapper.
+		Specialized overlapped mel-band `class`.
 
 	References
 	----------
@@ -269,7 +269,9 @@ class BSRoformer(Module):
 			Custom band-membership `Tensor` with shape `(band, freq)`. Entry `(bandIndex,
 			frequencyIndex)` is truthy when that frequency bin belongs to that band. When
 			`mask_filter_bank` is provided, `__init__` skips automatic BS-mode or mel-mode band
-			construction.
+			construction. For ad-hoc custom generation,
+			`hunterFormsBS.make_static_mask_filter_bank.filter_bank_non_overlapping` prints a
+			paste-ready static definition.
 		match_input_audio_length : bool = True
 			When `True`, inverse STFT reconstruction is forced back to the original waveform length.
 		mlp_expansion_factor : int = 4
@@ -382,8 +384,8 @@ class BSRoformer(Module):
 		if mask_filter_bank is None:
 			num_bands = num_bands or len(freqs_per_bands)
 			filter_bank: Tensor = repeat_interleave(arange(num_bands), tensor(freqs_per_bands))
-			mask_estimator_depth = mask_estimator_depth or 1
 			mask_filter_bank = filter_bank[None, :] == arange(num_bands)[:, None]
+			mask_estimator_depth = mask_estimator_depth or 1
 			if final_norm is None:
 				final_norm = True
 			if norm_output is None:
@@ -437,7 +439,7 @@ class BSRoformer(Module):
 		num_freqs_per_band: Tensor = reduce(mask_filter_bank, 'b f -> b', 'sum')
 		self.register_buffer('num_freqs_per_band', num_freqs_per_band, persistent=False)
 
-		freqs_per_bands_with_complex: tuple[int, ...] = tuple(map(partial(mul, 2 * self.audio_channels), num_freqs_per_band.tolist())) # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+		freqs_per_bands_with_complex: tuple[int, ...] = tuple(map(partial(mul, 2 * self.audio_channels), num_freqs_per_band.tolist())) # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]  # ty:ignore[invalid-assignment]
 		self.band_split: BandSplit = BandSplit(dim=dim, dim_inputs=freqs_per_bands_with_complex)
 		self.mask_estimators: ModuleList = nn.ModuleList([])
 		for _stem_index in loops(self.num_stems):

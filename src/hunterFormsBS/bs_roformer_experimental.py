@@ -155,7 +155,7 @@ class BSRoformer(Module):
 		num_freqs_per_band: Tensor = reduce(mask_filter_bank, 'b f -> b', 'sum')
 		self.register_buffer('num_freqs_per_band', num_freqs_per_band, persistent=False)
 
-		freqs_per_bands_with_complex: tuple[int, ...] = tuple(map(partial(mul, 2 * self.audio_channels), num_freqs_per_band.tolist())) # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+		freqs_per_bands_with_complex: tuple[int, ...] = tuple(map(partial(mul, 2 * self.audio_channels), num_freqs_per_band.tolist())) # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]  # ty:ignore[invalid-assignment]
 		self.band_split: BandSplit = BandSplit(dim=dim, dim_inputs=freqs_per_bands_with_complex)
 		self.mask_estimators: ModuleList = nn.ModuleList([])
 		for _stem_index in loops(self.num_stems):

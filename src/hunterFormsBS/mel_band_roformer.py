@@ -4,6 +4,12 @@ You can use this module to instantiate one configurable waveform-to-waveform mus
 that follows the overlapped mel-band front end from Mel-Band RoFormer [1]. The module exposes one
 public class with a forward method suitable for both inference and supervised training.
 
+For the common lucidrains-style mel-band layout, this module uses the bundled
+`hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default` when `mask_filter_bank` is `None`,
+`sample_rate=44100`, `stft_n_fft=2048`, and `num_bands=60`. If a checkpoint uses a different
+mel-band layout, pass `mask_filter_bank` explicitly. You can generate a static custom value with
+`hunterFormsBS.make_static_mask_filter_bank.librosa_filters_mel`.
+
 Contents
 --------
 Classes
@@ -21,10 +27,9 @@ from __future__ import annotations
 from einops import pack, rearrange, reduce, repeat, unpack  # pyright: ignore[reportUnknownVariableType]
 from functools import partial
 from hunterFormsBS.attend import Transformer
-from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, MaskEstimator
+from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, mask_filter_bank_mel_band_default, MaskEstimator
 from hunterFormsBS.theTypes import ComputeLoss, KwargsSTFT, KwargsTransformer
 from hunterMakesPy import raiseIfNone
-from librosa import filters
 from more_itertools import loops
 from operator import mul
 from PoPE_pytorch import PoPE
@@ -140,7 +145,7 @@ class MelBandRoformer(Module):
 	See Also
 	--------
 	hunterFormsBS.bs_roformer.BSRoformer
-		Specialized non-overlapping band-split wrapper.
+		Specialized non-overlapping band-split `class`.
 	hunterFormsBS.bandSplitRotator.BandSplitRotator
 		Unified separator that uses `BandSplit` as the band front end.
 
@@ -268,7 +273,9 @@ class MelBandRoformer(Module):
 			Custom band-membership `Tensor` with shape `(band, freq)`. Entry `(bandIndex,
 			frequencyIndex)` is truthy when that frequency bin belongs to that band. When
 			`mask_filter_bank` is provided, `__init__` skips automatic BS-mode or mel-mode band
-			construction.
+			construction. For ad-hoc custom generation,
+			`hunterFormsBS.make_static_mask_filter_bank.librosa_filters_mel` prints one paste-ready
+			static definition.
 		match_input_audio_length : bool = True
 			When `True`, inverse STFT reconstruction is forced back to the original waveform length.
 		mlp_expansion_factor : int = 4
@@ -369,12 +376,21 @@ class MelBandRoformer(Module):
 		self.skip_connection: bool = skip_connection
 
 		if mask_filter_bank is None:
-			mask_estimator_depth = mask_estimator_depth or 1
 			num_bands = num_bands or 60
 			sample_rate = sample_rate or 44100
-			filter_bank: Tensor = torch.from_numpy(filters.mel(sr=sample_rate, n_fft=stft_n_fft, n_mels=num_bands)) # pyright: ignore[reportUnknownMemberType]
-			mask_filter_bank = filter_bank > 0
-			mask_filter_bank[0, 0] = True
+			if (stft_n_fft == 2048) and (num_bands == 60) and (sample_rate == 44100):
+				mask_filter_bank = mask_filter_bank_mel_band_default
+			else:
+				message: str = (
+					f'I received `{stft_n_fft = }`, `{num_bands = }`, and `{sample_rate = }`, but '
+					'I only provide one built-in mel-band `mask_filter_bank` when `mask_filter_bank` '
+					'is `None`: `stft_n_fft == 2048`, `num_bands == 60`, and `sample_rate == 44100`. '
+					'If your checkpoint uses a different mel-band split, pass `mask_filter_bank` '
+					'explicitly. You can generate a static `mask_filter_bank` value with '
+					'`hunterFormsBS.make_static_mask_filter_bank.librosa_filters_mel`.'
+				)
+				raise ValueError(message)
+			mask_estimator_depth = mask_estimator_depth or 1
 			if final_norm is None:
 				final_norm = False
 			if norm_output is None:
@@ -428,7 +444,7 @@ class MelBandRoformer(Module):
 		num_freqs_per_band: Tensor = reduce(mask_filter_bank, 'b f -> b', 'sum')
 		self.register_buffer('num_freqs_per_band', num_freqs_per_band, persistent=False)
 
-		freqs_per_bands_with_complex: tuple[int, ...] = tuple(map(partial(mul, 2 * self.audio_channels), num_freqs_per_band.tolist())) # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+		freqs_per_bands_with_complex: tuple[int, ...] = tuple(map(partial(mul, 2 * self.audio_channels), num_freqs_per_band.tolist())) # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]  # ty:ignore[invalid-assignment]
 		self.band_split: BandSplit = BandSplit(dim=dim, dim_inputs=freqs_per_bands_with_complex)
 		self.mask_estimators: ModuleList = nn.ModuleList([])
 		for _stem_index in loops(self.num_stems):

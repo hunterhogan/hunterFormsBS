@@ -24,6 +24,8 @@ mel_band_roformer
 	Compatibility implementation that preserves an upstream mel-band separator layout.
 mel_band_roformer_experimental
 	Experimental variants of the compatibility mel-band separator layout.
+make_static_mask_filter_bank
+	Ad-hoc helpers that print static `mask_filter_bank` source for custom band layouts.
 theTypes
 	Typed configuration records for attention, STFT, transformer, and loss setup.
 """

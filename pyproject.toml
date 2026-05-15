@@ -1,6 +1,6 @@
 [project]
 name = "hunterFormsBS"
-version = "0.1.1"
+version = "0.1.2"
 description = "Flexible frequency-band splitter for music source separation. The BandSplitRoformer module supports BSRoformer, MelBandRoformer, and custom overlapping or non-overlapping band configurations. Fully typed, modular, and documented, including migration help, usage, and paper references. PyTorch; CUDA-accelerated."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -35,7 +35,6 @@ dependencies = [
   "einops>=0.8.2",
   "hunterMakesPy>=0.5.3",
   "hyper-connections>=0.4.10",
-  "librosa>=0.11.0",
   "more-itertools",
   "opt-einsum>=3.4.0",
   "packaging",

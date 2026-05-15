@@ -85,17 +85,56 @@ filter bank, not in two separate theories of the model.
 | `hunterFormsBS.mel_band_roformer.MelBandRoformer` | You want the familiar mel-band interface or a close comparison with upstream mel-band code.                    | The constructor keeps mel-oriented defaults and automatic mel-band construction. |
 | `hunterFormsBS.*_experimental`                    | You are testing research ideas such as value residual learning or hyper-connections.                           | These modules are exploratory and intentionally separate from the stable path.   |
 
+## Custom `mask_filter_bank` helpers
+
+Most users never need this section. The package already bundles the common lucidrains-style
+mel-band split as `hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default`, and the separator
+constructors use that value automatically for `sample_rate=44100`, `stft_n_fft=2048`, and
+`num_bands=60`.
+
+If a checkpoint uses a different band layout, pass `mask_filter_bank` explicitly. For ad-hoc
+generation, import a function from `hunterFormsBS.make_static_mask_filter_bank` in Python and call
+the function from a REPL, notebook, or one-off script. There is intentionally no CLI for this
+module. `librosa` is only needed if you call `librosa_filters_mel`.
+
+- `filter_bank_non_overlapping` prints a static non-overlapping band split from
+  `freqs_per_bands`.
+- `librosa_filters_mel` prints a static mel-band split using `librosa.filters.mel`.
+- `print_static_mask` prints the compact `torch.tensor(...)` assignment used by the other helpers.
+
 ## Package map
 
-| Module                            | Main symbols                                                                                                                                                                                                 | Purpose                                                                                              |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `hunterFormsBS.__init__`          | `BandSplitRotator`, `BandSplit`, `MaskEstimator`, `Transformer`, `lossComputation`, `DEFAULT_FREQS_PER_BANDS`, `ComputeLoss`, `FlashAttentionConfig`, `KwargsOfAttention`, `KwargsSTFT`, `KwargsTransformer` | Public top-level namespace for the stable typed API.                                                 |
-| `hunterFormsBS.bandSplitRotator`  | `BandSplitRotator`                                                                                                                                                                                           | Unified separator that can build BS-style, mel-style, or custom band layouts from one model family.  |
-| `hunterFormsBS.bs_roformer`       | `BSRoformer`                                                                                                                                                                                                 | Stable compatibility module for the non-overlapping BS-style variant.                                |
-| `hunterFormsBS.mel_band_roformer` | `MelBandRoformer`                                                                                                                                                                                            | Stable compatibility module for the overlapping mel-band variant.                                    |
-| `hunterFormsBS.bandSplit`         | `BandSplit`, `MaskEstimator`, `MLP`, `lossComputation`, `DEFAULT_FREQS_PER_BANDS`                                                                                                                            | Shared band projection, mask-estimation heads, BS-style default partition, and training-loss helper. |
-| `hunterFormsBS.attend`            | `Attend`, `Attention`, `FeedForward`, `LinearAttention`, `Transformer`                                                                                                                                       | Stable attention, feedforward, linear-attention, and transformer building blocks.                    |
-| `hunterFormsBS.theTypes`          | `ComputeLoss`, `FlashAttentionConfig`, `KwargsOfAttention`, `KwargsSTFT`, `KwargsTransformer`                                                                                                                | Typed configuration records used across the package.                                                 |
+- `hunterFormsBS.__init__`
+  - Main symbols: `BandSplitRotator`, `BandSplit`, `MaskEstimator`, `Transformer`,
+    `lossComputation`, `DEFAULT_FREQS_PER_BANDS`, `ComputeLoss`, `FlashAttentionConfig`,
+    `KwargsOfAttention`, `KwargsSTFT`, `KwargsTransformer`
+  - Purpose: public top-level namespace for the stable typed API.
+- `hunterFormsBS.bandSplitRotator`
+  - Main symbols: `BandSplitRotator`
+  - Purpose: unified separator that can build BS-style, mel-style, or custom band layouts from one
+    model family.
+- `hunterFormsBS.bs_roformer`
+  - Main symbols: `BSRoformer`
+  - Purpose: stable compatibility module for the non-overlapping BS-style variant.
+- `hunterFormsBS.mel_band_roformer`
+  - Main symbols: `MelBandRoformer`
+  - Purpose: stable compatibility module for the overlapping mel-band variant.
+- `hunterFormsBS.make_static_mask_filter_bank`
+  - Main symbols: `filter_bank_non_overlapping`, `librosa_filters_mel`, `print_static_mask`
+  - Purpose: ad-hoc helper module that prints paste-ready static `mask_filter_bank` definitions for
+    custom layouts.
+- `hunterFormsBS.bandSplit`
+  - Main symbols: `BandSplit`, `MaskEstimator`, `MLP`, `lossComputation`,
+    `DEFAULT_FREQS_PER_BANDS`
+  - Purpose: shared band projection, mask-estimation heads, BS-style default partition, and
+    training-loss helper.
+- `hunterFormsBS.attend`
+  - Main symbols: `Attend`, `Attention`, `FeedForward`, `LinearAttention`, `Transformer`
+  - Purpose: stable attention, feedforward, linear-attention, and transformer building blocks.
+- `hunterFormsBS.theTypes`
+  - Main symbols: `ComputeLoss`, `FlashAttentionConfig`, `KwargsOfAttention`, `KwargsSTFT`,
+    `KwargsTransformer`
+  - Purpose: typed configuration records used across the package.
 
 ## Experimental module map
 
@@ -123,6 +162,9 @@ often need:
 
 The compatibility classes are intentionally available from their own modules so that imports can stay
 explicit during comparisons with upstream repos.
+
+Ad-hoc helpers such as `hunterFormsBS.make_static_mask_filter_bank` stay as explicit submodule
+imports so the main namespace remains small and optional dependencies stay optional.
 
 ## Reference materials
 
