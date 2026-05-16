@@ -34,6 +34,8 @@ from typing import NamedTuple, TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
 	from collections.abc import Callable
+	from PoPE_pytorch import PoPE
+	from rotary_embedding_torch import RotaryEmbedding
 	from torch import Tensor
 
 class ComputeLoss(TypedDict):
@@ -104,6 +106,10 @@ class KwargsOfAttention(TypedDict):
 	dropout: float
 	flash: bool
 	heads: int
+	pope_embed: PoPE | None
+	rotary_embed: RotaryEmbedding | None
+	sage_attention: bool
+	scale: float
 
 class KwargsSTFT(TypedDict):
 	"""Collect shared STFT keyword arguments.

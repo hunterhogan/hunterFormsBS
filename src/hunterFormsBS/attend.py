@@ -12,34 +12,34 @@ repeated attention-and-feedforward sequence consumed by `BandSplitRotator` [7].
 Contents
 --------
 Classes
-    Attend
-        Evaluate attention output from precomputed query, key, and value arrays using an explicit or
-        PyTorch SDPA path.
-    Attention
-        Project activations into multi-head query, key, and value arrays, apply positional encoding,
-        and return gated attention output.
-    FeedForward
-        Apply a position-wise expansion-and-projection nonlinear block.
-    LinearAttention
-        Apply XCiT-style cross-covariance attention across feature channels.
-    Transformer
-        Stack attention and feedforward sublayers into a repeated residual sequence.
+	Attend
+		Evaluate attention output from precomputed query, key, and value arrays using an explicit or
+		PyTorch SDPA path.
+	Attention
+		Project activations into multi-head query, key, and value arrays, apply positional encoding,
+		and return gated attention output.
+	FeedForward
+		Apply a position-wise expansion-and-projection nonlinear block.
+	LinearAttention
+		Apply XCiT-style cross-covariance attention across feature channels.
+	Transformer
+		Stack attention and feedforward sublayers into a repeated residual sequence.
 
 References
 ----------
 [1] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation with
-    Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
+	Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
 [2] Wang, J.-C., Lu, W.-T., & Won, M. (2023). Mel-Band RoFormer for Music Source Separation.
-    https://arxiv.org/abs/2409.04702
+	https://arxiv.org/abs/2409.04702
 [3] PyTorch.
-    https://context7.com/pytorch/pytorch
+	https://context7.com/pytorch/pytorch
 [4] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., & Liu, Y. (2021). RoFormer: Enhanced
-    Transformer with Rotary Position Embedding. https://arxiv.org/abs/2104.09864
+	Transformer with Rotary Position Embedding. https://arxiv.org/abs/2104.09864
 [5] Gopalakrishnan, A., Csordás, R., Schmidhuber, J., & Mozer, M. C. (2025). Decoupling the
-    "What" and "Where" With Polar Coordinate Positional Embeddings. https://arxiv.org/abs/2509.10534
+	"What" and "Where" With Polar Coordinate Positional Embeddings. https://arxiv.org/abs/2509.10534
 [6] El-Nouby, A., Touvron, H., Caron, M., Bojanowski, P., Douze, M., Joulin, A., Laptev, I.,
-    Neverova, N., Synnaeve, G., Verbeek, J., & Jégou, H. (2021). XCiT: Cross-Covariance Image
-    Transformers. https://arxiv.org/abs/2106.09681
+	Neverova, N., Synnaeve, G., Verbeek, J., & Jégou, H. (2021). XCiT: Cross-Covariance Image
+	Transformers. https://arxiv.org/abs/2106.09681
 [7] hunterFormsBS.bandSplitRotator.BandSplitRotator
 """
 from __future__ import annotations
@@ -48,11 +48,12 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 from hunterFormsBS.theTypes import FlashAttentionConfig, KwargsOfAttention
 from more_itertools import loops
+from operator import neg
 from packaging import version
 from PoPE_pytorch import flash_attn_with_pope, PoPE
 from torch import einsum, nn, Tensor
 from torch.nn import Module, ModuleList
-from torch_einops_kit import default, exists, once
+from torch_einops_kit import exists, once
 from torch_einops_kit.scaleValues import l2norm, RMSNorm
 from typing import cast, TYPE_CHECKING
 import torch
@@ -119,7 +120,7 @@ class Attend(nn.Module):
 		https://arxiv.org/abs/2205.14135
 	"""
 
-	def __init__(self, dropout: float = 0.0, scale: float | None = None, *, flash: bool = False) -> None:
+	def __init__(self, dropout: float, scale: float, *, flash: bool = False) -> None:
 		"""Configure attention-score scaling, dropout, and scaled dot-product attention backend selection.
 
 		You can use `__init__` to set the dropout probability for attention weights, optionally
@@ -159,7 +160,7 @@ class Attend(nn.Module):
 			https://arxiv.org/abs/2205.14135
 		"""
 		super().__init__()
-		self.scale: float | None = scale
+		self.scale: float = scale
 		self.dropout: float = dropout
 		self.attn_dropout: nn.Dropout = nn.Dropout(self.dropout)
 
@@ -254,9 +255,7 @@ class Attend(nn.Module):
 		"""
 		is_cuda: bool = q.is_cuda
 
-		if exists(self.scale):
-			default_scale: float = q.shape[-1] ** -0.5
-			q = q * (self.scale / default_scale)
+		q = q * (self.scale / (q.shape[-1] ** neg(0.5)))
 
 		# Check if there is a compatible device for flash attention
 		config: FlashAttentionConfig = self.cpu_config
@@ -323,9 +322,7 @@ class Attend(nn.Module):
 		if self.flash:
 			return self.flash_attn(q, k, v)
 
-		scale: float = default(self.scale, q.shape[-1] ** -0.5)
-
-		similarity: Tensor = einsum('b h i d, b h j d -> b h i j', q, k) * scale
+		similarity: Tensor = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
 		attention_weights: Tensor = similarity.softmax(dim=-1)
 		attention_weights = self.attn_dropout(attention_weights)
@@ -416,13 +413,15 @@ class Attention(nn.Module):
 	def __init__(
 		self,
 		dim: int,
-		heads: int = 8,
 		dim_head: int = 64,
 		dropout: float = 0.0,
-		rotary_embed: RotaryEmbedding | None = None,
+		heads: int = 8,
 		pope_embed: PoPE | None = None,
+		rotary_embed: RotaryEmbedding | None = None,
+		scale: float | None = None,
 		*,
 		flash: bool = True,
+		sage_attention: bool = False,
 	) -> None:
 		"""Set up an attention block for a chosen width and head layout.
 
@@ -477,24 +476,36 @@ class Attention(nn.Module):
 			https://context7.com/pytorch/pytorch
 		"""
 		super().__init__()
+
+		# Initialize `self`, primary
 		self.heads: int = heads
-		self.scale: float = dim_head**-0.5
-		dim_inner: int = self.heads * dim_head
-
-		self.rotary_embed: RotaryEmbedding | None = rotary_embed
-		self.pope_embed: PoPE | None = pope_embed
-
-		if exists(self.rotary_embed) and exists(self.pope_embed):
-			message: str = "I received both `rotary_embed` and `pope_embed`, but these positional encodings are mutually exclusive."
-			raise ValueError(message)
-
-		self.attend: Attend = Attend(flash=flash, dropout=dropout)
-
 		self.norm: RMSNorm = RMSNorm(dim)
-		self.to_qkv: nn.Linear = nn.Linear(dim, dim_inner * 3, bias=False)
+		self.pope_embed: PoPE | None = pope_embed
+		self.rotary_embed: RotaryEmbedding | None = rotary_embed
+		self.scale: float = scale or dim_head**neg(0.5)
 
+		# Initialize `self`, secondary
+		if sage_attention:
+			from models.bs_roformer.attend_sage import Attend as AttendSage  # pyright: ignore[reportUnknownVariableType, reportMissingImports] # noqa: PLC0415  # ty:ignore[unresolved-import]
+			self.attend: Attend = AttendSage(dropout=dropout, scale=self.scale, flash=flash)
+		else:
+			self.attend: Attend = Attend(dropout=dropout, scale=self.scale, flash=flash)
+		# "normal" `Attention`, not `LinearAttention`
 		self.to_gates: nn.Linear = nn.Linear(dim, self.heads)
-		self.to_out: nn.Sequential = nn.Sequential(nn.Linear(dim_inner, dim, bias=False), nn.Dropout(dropout))
+
+		# Compute internal values
+		dim_inner: int = self.heads * dim_head
+		qkv: int = 3
+
+		# Initialize `self`, tertiary
+		self.to_out: nn.Sequential = nn.Sequential(
+			Rearrange('b h n d -> b n (h d)')
+			, nn.Linear(in_features=dim_inner, out_features=dim, bias=False)
+			, nn.Dropout(dropout)
+		)
+		self.to_qkv: nn.Sequential = nn.Sequential(
+			nn.Linear(in_features=dim, out_features=dim_inner * qkv, bias=False)
+			, Rearrange('b n (qkv h d) -> qkv b h n d', qkv=qkv, h=self.heads))
 
 	def forward(self, x: Tensor) -> Tensor:
 		"""Compute gated multi-head attention output from activations `x`.
@@ -568,8 +579,7 @@ class Attention(nn.Module):
 			https://arxiv.org/abs/1706.03762
 		"""
 		x = self.norm(x)
-
-		q, k, v = rearrange(self.to_qkv(x), 'b n (qkv h d) -> qkv b h n d', qkv=3, h=self.heads)
+		q, k, v = self.to_qkv(x)
 
 		if exists(self.pope_embed):
 			out: Tensor = flash_attn_with_pope(q, k, v, pos_emb=self.pope_embed(q.shape[-2]), softmax_scale=self.scale)
@@ -580,10 +590,11 @@ class Attention(nn.Module):
 		else:
 			out = self.attend(q, k, v)
 
+		# after attend
+		# "normal" `Attention`, not `LinearAttention`
 		gates: Tensor = self.to_gates(x)
 		out = out * rearrange(gates, 'b n h -> b h n 1').sigmoid()
 
-		out = rearrange(out, 'b h n d -> b n (h d)')
 		return self.to_out(out)
 
 class FeedForward(Module):
@@ -759,7 +770,19 @@ class LinearAttention(Module):
 	[6] PyTorch.
 		https://context7.com/pytorch/pytorch
 	"""
-	def __init__(self, *, dim: int, dim_head: int = 32, heads: int = 8, scale: float = 8, flash: bool = False, dropout: float = 0.0) -> None:
+	def __init__(
+		self,
+		dim: int,
+		dim_head: int = 32,
+		dropout: float = 0.0,
+		heads: int = 8,
+		pope_embed: PoPE | None = None,
+		rotary_embed: RotaryEmbedding | None = None,
+		scale: float | None = None,
+		*,
+		flash: bool = False,
+		sage_attention: bool = False,
+	) -> None:
 		"""Set up cross-covariance attention for a chosen width and head layout.
 
 		You can use `__init__` to choose the model width, number of heads, per-head log-temperature
@@ -804,16 +827,35 @@ class LinearAttention(Module):
 			https://context7.com/pytorch/pytorch
 		"""
 		super().__init__()
-		dim_inner: int = dim_head * heads
+
+		# Initialize `self`, primary
+		self.heads: int = heads
 		self.norm: RMSNorm = RMSNorm(dim)
+		self.pope_embed: PoPE | None = pope_embed
+		self.rotary_embed: RotaryEmbedding | None = rotary_embed
+		self.scale: float = scale or 8
 
-		self.to_qkv: nn.Sequential = nn.Sequential(nn.Linear(dim, dim_inner * 3, bias=False), Rearrange('b n (qkv h d) -> qkv b h d n', qkv=3, h=heads))
+		# Initialize `self`, secondary
+		if sage_attention:
+			from models.bs_roformer.attend_sage import Attend as AttendSage  # pyright: ignore[reportUnknownVariableType, reportMissingImports] # noqa: PLC0415  # ty:ignore[unresolved-import]
+			self.attend: Attend = AttendSage(dropout=dropout, scale=self.scale, flash=flash)
+		else:
+			self.attend: Attend = Attend(dropout=dropout, scale=self.scale, flash=flash)
+		# `LinearAttention`, not "normal" `Attention`
+		self.temperature: nn.Parameter = nn.Parameter(torch.ones(self.heads, 1, 1))
 
-		self.temperature: nn.Parameter = nn.Parameter(torch.ones(heads, 1, 1))
+		# Compute internal values
+		dim_inner: int = self.heads * dim_head
+		qkv: int = 3
 
-		self.attend: Attend = Attend(scale=scale, dropout=dropout, flash=flash)
-
-		self.to_out = nn.Sequential(Rearrange('b h d n -> b n (h d)'), nn.Linear(dim_inner, dim, bias=False))
+		# Initialize `self`, tertiary
+		self.to_out = nn.Sequential(
+			Rearrange('b h d n -> b n (h d)')
+			, nn.Linear(in_features=dim_inner, out_features=dim, bias=False)
+		)
+		self.to_qkv: nn.Sequential = nn.Sequential(
+			nn.Linear(in_features=dim, out_features=dim_inner * qkv, bias=False)
+			, Rearrange('b n (qkv h d) -> qkv b h d n', qkv=qkv, h=self.heads))
 
 	def forward(self, x: Tensor) -> Tensor:
 		"""Return feature-channel attention output from activations `x`.
@@ -880,12 +922,15 @@ class LinearAttention(Module):
 			https://arxiv.org/abs/2409.04702
 		"""
 		x = self.norm(x)
-
 		q, k, v = self.to_qkv(x)
 
+		# Instead of rotating?
 		q, k = map(l2norm, (q, k))
+
+		# `LinearAttention`, not "normal" `Attention`
 		q: Tensor = q * self.temperature.exp()
 
+		# attend, then out
 		out: Tensor = self.attend(q, k, v)
 
 		return self.to_out(out)
@@ -947,6 +992,8 @@ class Transformer(Module):
 		norm_output: bool = True,
 		pope_embed: PoPE | None = None,
 		rotary_embed: RotaryEmbedding | None = None,
+		sage_attention: bool = False,
+		scale: float = 8,
 	) -> None:
 		"""Set up a transformer stack for feature width `dim` and layer count `depth`.
 
@@ -1009,7 +1056,8 @@ class Transformer(Module):
 		"""
 		super().__init__()
 
-		attentionKwargs = KwargsOfAttention(dim=dim, dim_head=dim_head, heads=heads, dropout=attn_dropout, flash=flash_attn)
+		attentionKwargs = KwargsOfAttention(dim=dim, dim_head=dim_head, heads=heads, dropout=attn_dropout,
+				flash=flash_attn, scale=scale, pope_embed=pope_embed, rotary_embed=rotary_embed, sage_attention=sage_attention)
 
 		if linear_attn:
 			self.layers = ModuleList(
@@ -1019,7 +1067,7 @@ class Transformer(Module):
 
 		else:
 			self.layers = ModuleList(
-				ModuleList([Attention(**attentionKwargs, rotary_embed=rotary_embed, pope_embed=pope_embed), FeedForward(dim=dim, mult=ff_mult, dropout=ff_dropout)])
+				ModuleList([Attention(**attentionKwargs), FeedForward(dim=dim, mult=ff_mult, dropout=ff_dropout)])
 					for _deep in loops(depth)
 			)
 
