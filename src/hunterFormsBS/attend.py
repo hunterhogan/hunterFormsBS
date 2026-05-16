@@ -495,17 +495,11 @@ class Attention(nn.Module):
 
 		# Compute internal values
 		dim_inner: int = self.heads * dim_head
-		qkv: int = 3
 
 		# Initialize `self`, tertiary
-		self.to_out: nn.Sequential = nn.Sequential(
-			Rearrange('b h n d -> b n (h d)')
-			, nn.Linear(in_features=dim_inner, out_features=dim, bias=False)
-			, nn.Dropout(dropout)
-		)
-		self.to_qkv: nn.Sequential = nn.Sequential(
-			nn.Linear(in_features=dim, out_features=dim_inner * qkv, bias=False)
-			, Rearrange('b n (qkv h d) -> qkv b h n d', qkv=qkv, h=self.heads))
+		self.to_qkv: nn.Linear = nn.Linear(in_features=dim, out_features=dim_inner * 3, bias=False)
+		self.to_out: nn.Sequential = nn.Sequential(nn.Linear(in_features=dim_inner, out_features=dim, bias=False), nn.Dropout(dropout))
+
 
 	def forward(self, x: Tensor) -> Tensor:
 		"""Compute gated multi-head attention output from activations `x`.
@@ -579,7 +573,8 @@ class Attention(nn.Module):
 			https://arxiv.org/abs/1706.03762
 		"""
 		x = self.norm(x)
-		q, k, v = self.to_qkv(x)
+
+		q, k, v = rearrange(self.to_qkv(x), 'b n (qkv h d) -> qkv b h n d', qkv=3, h=self.heads)
 
 		if exists(self.pope_embed):
 			out: Tensor = flash_attn_with_pope(q, k, v, pos_emb=self.pope_embed(q.shape[-2]), softmax_scale=self.scale)
@@ -595,6 +590,7 @@ class Attention(nn.Module):
 		gates: Tensor = self.to_gates(x)
 		out = out * rearrange(gates, 'b n h -> b h n 1').sigmoid()
 
+		out = rearrange(out, 'b h n d -> b n (h d)')
 		return self.to_out(out)
 
 class FeedForward(Module):
