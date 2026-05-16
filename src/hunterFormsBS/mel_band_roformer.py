@@ -203,7 +203,7 @@ class MelBandRoformer(Module):
 		multi_stft_resolution_loss_weight: float = 1.0,
 		multi_stft_resolutions_window_sizes: tuple[int, ...] = (4096, 2048, 1024, 512, 256),
 		multi_stft_window_fn: Callable[..., Tensor] = halfsineTensor,
-		norm_output: bool = False,
+		norm_output: bool = True,
 		num_bands: int | None = None,
 		num_stems: int = 1,
 		sample_rate: float | None = None,
