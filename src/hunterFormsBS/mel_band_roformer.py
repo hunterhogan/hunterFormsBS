@@ -193,7 +193,7 @@ class MelBandRoformer(Module):
 		freq_transformer_depth: int = 2,
 		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,  # noqa: ARG002
 		heads: int = 8,
-		linear_transformer_depth: int = 0,
+		linear_transformer_depth: int = 0,  # noqa: ARG002
 		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
@@ -203,7 +203,7 @@ class MelBandRoformer(Module):
 		multi_stft_resolution_loss_weight: float = 1.0,
 		multi_stft_resolutions_window_sizes: tuple[int, ...] = (4096, 2048, 1024, 512, 256),
 		multi_stft_window_fn: Callable[..., Tensor] = halfsineTensor,
-		norm_output: bool | None = None,
+		norm_output: bool = False,
 		num_bands: int | None = None,
 		num_stems: int = 1,
 		sample_rate: float | None = None,
@@ -371,7 +371,6 @@ class MelBandRoformer(Module):
 		self.stereo: bool = stereo
 		self.audio_channels: int = 2 if self.stereo else 1
 		self.num_stems: int = num_stems
-		self.linear_transformer_depth: int = linear_transformer_depth
 		self.use_torch_checkpoint: bool = use_torch_checkpoint
 		self.skip_connection: bool = skip_connection
 
@@ -393,8 +392,6 @@ class MelBandRoformer(Module):
 			mask_estimator_depth = mask_estimator_depth or 1
 			if final_norm is None:
 				final_norm = False
-			if norm_output is None:
-				norm_output = True
 			if zero_dc is None:
 				zero_dc = False
 
@@ -415,20 +412,15 @@ class MelBandRoformer(Module):
 			freq_pope_embed = None
 
 		transformer_kwargs: KwargsTransformer = KwargsTransformer(attn_dropout=attn_dropout, dim_head=dim_head,
-			dim=dim, ff_dropout=ff_dropout, flash_attn=flash_attn, heads=heads,
-			norm_output=raiseIfNone(norm_output, f'I received {norm_output = }, but I need a type `bool` value or a "truthy" value.'),
+			dim=dim, ff_dropout=ff_dropout, flash_attn=flash_attn, heads=heads, norm_output=norm_output,
 		)
 
 		self.layers: ModuleList = ModuleList([])
 		for _deep in loops(depth):
-			tran_modules: list[nn.Module] = []
-			if self.linear_transformer_depth > 0:
-				tran_modules.append(Transformer(depth=self.linear_transformer_depth, linear_attn=True, **transformer_kwargs))
-			tran_modules.extend([
+			self.layers.append(nn.ModuleList([
 				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed, **transformer_kwargs)
 				, Transformer(depth=freq_transformer_depth, rotary_embed=freq_rotary_embed, pope_embed=freq_pope_embed, **transformer_kwargs)
-			])
-			self.layers.append(nn.ModuleList(tran_modules))
+			]))
 
 		# stft
 
@@ -653,15 +645,6 @@ class MelBandRoformer(Module):
 			layer: ModuleList = cast('ModuleList', transformer_block)
 			time_transformer: Transformer = cast('Transformer', layer[-2])
 			freq_transformer: Transformer = cast('Transformer', layer[-1])
-
-			if self.linear_transformer_depth:
-				linear_transformer: Transformer = cast('Transformer', layer[0])
-				x, ft_ps = pack([x], 'b * d')
-				if self.use_torch_checkpoint:
-					x = checkpoint(linear_transformer, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
-				else:
-					x = linear_transformer(x)
-				(x,) = unpack(x, ft_ps, 'b * d')
 
 			if self.skip_connection:
 				# Sum all previous

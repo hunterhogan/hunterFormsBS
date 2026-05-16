@@ -1,3 +1,4 @@
+# ruff: noqa: PLC0415
 """Provide attention, feedforward, and transformer blocks for music source separation.
 
 You can use this module to assemble the hierarchical attention stack shared by BS-RoFormer [1] and
@@ -45,7 +46,6 @@ References
 from __future__ import annotations
 
 from einops import rearrange
-from einops.layers.torch import Rearrange
 from hunterFormsBS.theTypes import FlashAttentionConfig, KwargsOfAttention
 from more_itertools import loops
 from operator import neg
@@ -54,7 +54,7 @@ from PoPE_pytorch import flash_attn_with_pope, PoPE
 from torch import einsum, nn, Tensor
 from torch.nn import Module, ModuleList
 from torch_einops_kit import exists, once
-from torch_einops_kit.scaleValues import l2norm, RMSNorm
+from torch_einops_kit.scaleValues import RMSNorm
 from typing import cast, TYPE_CHECKING
 import torch
 import torch.nn.functional as F
@@ -120,7 +120,7 @@ class Attend(nn.Module):
 		https://arxiv.org/abs/2205.14135
 	"""
 
-	def __init__(self, dropout: float, scale: float, *, flash: bool = False) -> None:
+	def __init__(self, dropout: float, scale: float, *, flash: bool = False, sage_attention: bool = False) -> None:
 		"""Configure attention-score scaling, dropout, and scaled dot-product attention backend selection.
 
 		You can use `__init__` to set the dropout probability for attention weights, optionally
@@ -169,6 +169,8 @@ class Attend(nn.Module):
 			pytorchVersion: str = torch.__version__
 			message: str = f'I received `{pytorchVersion = }`, but `flash=True` requires PyTorch 2.0.0 or above.'
 			raise RuntimeError(message)
+
+		self.sage_attention: bool = sage_attention
 
 		# determine efficient attention configs for cuda and cpu
 
@@ -319,6 +321,38 @@ class Attend(nn.Module):
 			Gomez, A. N., Kaiser, Ł., and Polosukhin, I. (2017). Attention Is All You Need.
 			https://arxiv.org/abs/1706.03762
 		"""
+		if self.sage_attention:
+			"""At the moment, you need to install `sageattention` manually.
+
+			https://github.com/thu-ml/SageAttention
+
+			@inproceedings{zhang2025sageattention,
+			title={SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration},
+			author={Zhang, Jintao and Wei, Jia and Zhang, Pengle and Zhu, Jun and Chen, Jianfei},
+			booktitle={International Conference on Learning Representations (ICLR)},
+			year={2025}
+			}
+			@inproceedings{zhang2024sageattention2,
+			title={Sageattention2: Efficient attention with thorough outlier smoothing and per-thread int4 quantization},
+			author={Zhang, Jintao and Huang, Haofeng and Zhang, Pengle and Wei, Jia and Zhu, Jun and Chen, Jianfei},
+			booktitle={International Conference on Machine Learning (ICML)},
+			year={2025}
+			}
+			@article{zhang2025sageattention2++,
+			title={Sageattention2++: A more efficient implementation of sageattention2},
+			author={Zhang, Jintao and Xu, Xiaoming and Wei, Jia and Huang, Haofeng and Zhang, Pengle and Xiang, Chendong and Zhu, Jun and Chen, Jianfei},
+			journal={arXiv preprint arXiv:2505.21136},
+			year={2025}
+			}
+			@article{zhang2025sageattention3,
+			title={SageAttention3: Microscaling FP4 Attention for Inference and An Exploration of 8-Bit Training},
+			author={Zhang, Jintao and Wei, Jia and Zhang, Pengle and Xu, Xiaoming and Huang, Haofeng and Wang, Haoxu and Jiang, Kai and Zhu, Jun and Chen, Jianfei},
+			journal={arXiv preprint arXiv:2505.11594},
+			year={2025}
+			}
+			"""
+			from sageattention import sageattn  # pyright: ignore[reportMissingImports, reportUnknownVariableType] # ty:ignore[unresolved-import]
+			return sageattn(q, k, v, tensor_layout='HND', is_causal=False) # pyright: ignore[reportUnknownVariableType]
 		if self.flash:
 			return self.flash_attn(q, k, v)
 
@@ -485,11 +519,7 @@ class Attention(nn.Module):
 		self.scale: float = scale or dim_head**neg(0.5)
 
 		# Initialize `self`, secondary
-		if sage_attention:
-			from models.bs_roformer.attend_sage import Attend as AttendSage  # pyright: ignore[reportUnknownVariableType, reportMissingImports] # noqa: PLC0415  # ty:ignore[unresolved-import]
-			self.attend: Attend = AttendSage(dropout=dropout, scale=self.scale, flash=flash)
-		else:
-			self.attend: Attend = Attend(dropout=dropout, scale=self.scale, flash=flash)
+		self.attend: Attend = Attend(dropout=dropout, scale=self.scale, flash=flash, sage_attention=sage_attention)
 		# "normal" `Attention`, not `LinearAttention`
 		self.to_gates: nn.Linear = nn.Linear(dim, self.heads)
 
@@ -499,7 +529,6 @@ class Attention(nn.Module):
 		# Initialize `self`, tertiary
 		self.to_qkv: nn.Linear = nn.Linear(in_features=dim, out_features=dim_inner * 3, bias=False)
 		self.to_out: nn.Sequential = nn.Sequential(nn.Linear(in_features=dim_inner, out_features=dim, bias=False), nn.Dropout(dropout))
-
 
 	def forward(self, x: Tensor) -> Tensor:
 		"""Compute gated multi-head attention output from activations `x`.
@@ -703,234 +732,6 @@ class FeedForward(Module):
 		"""
 		return self.net(x)
 
-class LinearAttention(Module):
-	"""Mix feature channels with XCiT-style cross-covariance attention.
-
-	You can use `LinearAttention` when activation `Tensor` `x` should mix feature channels instead
-	of sequence positions, following XCiT [4]. `LinearAttention` projects activation `Tensor` `x`
-	into query `Tensor` `q`, key `Tensor` `k`, and value `Tensor` `v` with a transposed head
-	layout, so attention runs across per-head feature channels rather than across sequence
-	positions. In this repository, `LinearAttention` is the optional `linear_attn=True` branch in
-	the shared source-separation transformer module that also supports BS-RoFormer [2] and
-	Mel-Band RoFormer [3].
-
-	PyTorch
-	-------
-	module structure : implementation detail
-		`LinearAttention` applies `norm`, projects activations with `to_qkv`, reorders the head
-		arrays to `B×H×D×N`, `ℓ₂`-normalizes query `Tensor` `q` and key `Tensor` `k`, sharpens query
-		`Tensor` `q` with `temperature.exp()`, delegates feature-channel mixing to `Attend` [5], and
-		projects the result back with `to_out`. This follows the transposed cross-covariance
-		construction from XCiT [4] rather than the default sequence-position attention branch.
-
-	Attributes
-	----------
-	attend : Attend
-		Feature-channel attention core used after `LinearAttention` prepares normalized query, key,
-		and value arrays [5].
-	norm : RMSNorm
-		Normalization module applied before projection.
-	temperature : nn.Parameter
-		Per-head log-temperature parameter. `forward` exponentiates `temperature` and multiplies the
-		normalized query `Tensor` `q` before `Attend` [5], following the XCiT per-head sharpening
-		rule [4].
-	to_out : nn.Sequential
-		Output projection module implemented with PyTorch layers [6].
-	to_qkv : nn.Sequential
-		Projection and axis-reordering module that produces query `Tensor` `q`, key `Tensor` `k`,
-		and value `Tensor` `v` for cross-covariance attention [4].
-
-	See Also
-	--------
-	Attend
-		Evaluate feature-channel attention from precomputed query, key, and value arrays.
-	Attention
-		Provide the sequence-position attention branch used when `linear_attn=False`.
-	Transformer
-		Select `LinearAttention` when `linear_attn=True`.
-
-	References
-	----------
-	[1] hunterFormsBS.attend.Transformer
-
-	[2] Lu, W.-T., Wang, J.-C., Kong, Q., and Hung, Y.-N. (2023).
-		Music Source Separation with Band-Split RoPE Transformer.
-		https://doi.org/10.48550/arXiv.2309.02612
-	[3] Wang, J.-C., Lu, W.-T., and Won, M. (2023).
-		Mel-Band RoFormer for Music Source Separation. https://arxiv.org/abs/2409.04702
-	[4] El-Nouby, A., Touvron, H., Caron, M., Bojanowski, P., Douze, M.,
-		Joulin, A., Laptev, I., Neverova, N., Synnaeve, G., Verbeek, J., and Jégou, H. (2021). XCiT:
-		Cross-Covariance Image Transformers. https://arxiv.org/abs/2106.09681
-	[5] hunterFormsBS.attend.Attend
-
-	[6] PyTorch.
-		https://context7.com/pytorch/pytorch
-	"""
-	def __init__(
-		self,
-		dim: int,
-		dim_head: int = 32,
-		dropout: float = 0.0,
-		heads: int = 8,
-		pope_embed: PoPE | None = None,
-		rotary_embed: RotaryEmbedding | None = None,
-		scale: float | None = None,
-		*,
-		flash: bool = False,
-		sage_attention: bool = False,
-	) -> None:
-		"""Set up cross-covariance attention for a chosen width and head layout.
-
-		You can use `__init__` to choose the model width, number of heads, per-head log-temperature
-		sharpening from XCiT [1], and downstream `Attend` kernel [2] used for feature-channel
-		mixing. `__init__` stores the projection modules and per-head log-temperature parameter so
-		later calls to `forward` can reuse the same branch inside `Transformer` [3].
-
-		PyTorch
-		-------
-		submodule construction : implementation detail
-			`__init__` computes `dim_inner = dim_head * heads`, creates `norm = RMSNorm(dim)`, stores
-			`to_qkv` as a projection plus axis reordering module, initializes `temperature =
-			nn.Parameter(torch.ones( heads, 1, 1))`, creates `attend = Attend(scale=scale,
-			dropout=dropout, flash=flash)`, and stores `to_out` as the final projection [2][4].
-
-		Parameters
-		----------
-		dim : int
-			Input feature width before projection and output feature width after `to_out`.
-		dim_head : int = 32
-			Feature width in each attention head after the projection.
-		heads : int = 8
-			Number of feature groups used for block-diagonal cross-covariance attention [1].
-		scale : float = 8
-			Additional multiplicative factor passed to `Attend` [2] after the per-head
-			`temperature.exp()` sharpening from XCiT [1].
-		flash : bool = False
-			Whether `Attend` [2] may use PyTorch SDPA (scaled dot-product attention) backends [4].
-		dropout : float = 0.0
-			Probability used inside `Attend` [2].
-
-		References
-		----------
-		[1] El-Nouby, A., Touvron, H., Caron, M., Bojanowski, P., Douze, M.,
-			Joulin, A., Laptev, I., Neverova, N., Synnaeve, G., Verbeek, J., and Jégou, H. (2021).
-			XCiT: Cross-Covariance Image Transformers. https://arxiv.org/abs/2106.09681
-		[2] hunterFormsBS.attend.Attend
-
-		[3] hunterFormsBS.attend.Transformer
-
-		[4] PyTorch.
-			https://context7.com/pytorch/pytorch
-		"""
-		super().__init__()
-
-		# Initialize `self`, primary
-		self.heads: int = heads
-		self.norm: RMSNorm = RMSNorm(dim)
-		self.pope_embed: PoPE | None = pope_embed
-		self.rotary_embed: RotaryEmbedding | None = rotary_embed
-		self.scale: float = scale or 8
-
-		# Initialize `self`, secondary
-		if sage_attention:
-			from models.bs_roformer.attend_sage import Attend as AttendSage  # pyright: ignore[reportUnknownVariableType, reportMissingImports] # noqa: PLC0415  # ty:ignore[unresolved-import]
-			self.attend: Attend = AttendSage(dropout=dropout, scale=self.scale, flash=flash)
-		else:
-			self.attend: Attend = Attend(dropout=dropout, scale=self.scale, flash=flash)
-		# `LinearAttention`, not "normal" `Attention`
-		self.temperature: nn.Parameter = nn.Parameter(torch.ones(self.heads, 1, 1))
-
-		# Compute internal values
-		dim_inner: int = self.heads * dim_head
-		qkv: int = 3
-
-		# Initialize `self`, tertiary
-		self.to_out = nn.Sequential(
-			Rearrange('b h d n -> b n (h d)')
-			, nn.Linear(in_features=dim_inner, out_features=dim, bias=False)
-		)
-		self.to_qkv: nn.Sequential = nn.Sequential(
-			nn.Linear(in_features=dim, out_features=dim_inner * qkv, bias=False)
-			, Rearrange('b n (qkv h d) -> qkv b h d n', qkv=qkv, h=self.heads))
-
-	def forward(self, x: Tensor) -> Tensor:
-		"""Return feature-channel attention output from activations `x`.
-
-		You can use `forward` to normalize activations `x`, project activation `Tensor` `x` into
-		transposed query `Tensor` `q`, key `Tensor` `k`, and value `Tensor` `v`, form an XCiT
-		cross-covariance map [1] that mixes feature channels instead of sequence positions, and
-		return updated activations through `Attend` [2]. `forward` preserves the batch axis and
-		sequence axis of activation `Tensor` `x`, so `LinearAttention` can replace the default
-		attention branch inside the shared `Transformer` module [3] that also supports BS-RoFormer
-		[4] and Mel-Band RoFormer [5].
-
-		Parameters
-		----------
-		x : Tensor
-			Input activation `Tensor` with shape `batch × sequence position × feature`.
-
-		Returns
-		-------
-		out : Tensor
-			Output activation `Tensor` with shape `batch × sequence position × feature`.
-
-		Shape Transformation
-		--------------------
-		head layout : implementation detail
-			`forward` maps activation `Tensor` `x` with shape `B×N×dim` to query `Tensor` `q`, key
-			`Tensor` `k`, and value `Tensor` `v` with shape `B×H×D×N`. This transpose moves the
-			quadratic interaction from the sequence axis to the per-head feature axis [1]. After
-			`Attend` [2], `to_out` returns the result to `B×N×(H·D)`.
-
-		Mathematics
-		-----------
-		cross-covariance attention : equation
-		```
-			Let H ≜ heads,  D ≜ dim_head,  N ≜ sequence length,
-				s ≜ `self.attend.scale`,
-				τ ∈ ℝ^{H×1×1} ≜ `self.temperature`,  τₕ ≜ τ[h, 0, 0],  h ∈ {0, …, H−1},
-				Q, K, V ∈ ℝ^{B×H×D×N} ≜ rearranged projections of `self.norm(x)`
-
-				Q̂[b, h, d, :] = Q[b, h, d, :] / ‖Q[b, h, d, :]‖₂
-				K̂[b, h, d, :] = K[b, h, d, :] / ‖K[b, h, d, :]‖₂
-				S[b, h, i, j] = exp(τₕ) · s · ⟨Q̂[b, h, i, :], K̂[b, h, j, :]⟩,  i, j ∈ {0, …, D−1}
-				A[b, h, i, j] = exp(S[b, h, i, j]) / ∑ₘ exp(S[b, h, i, m])
-				O[b, h, i, :] = ∑ⱼ A[b, h, i, j] · V[b, h, j, :]
-
-			where  A ≜ feature-channel attention matrix,  O ≜ per-head output before `to_out`
-		```
-
-		References
-		----------
-		[1] El-Nouby, A., Touvron, H., Caron, M., Bojanowski, P., Douze, M.,
-			Joulin, A., Laptev, I., Neverova, N., Synnaeve, G., Verbeek, J., and
-			Jégou, H. (2021). XCiT: Cross-Covariance Image Transformers.
-			https://arxiv.org/abs/2106.09681
-		[2] hunterFormsBS.attend.Attend
-
-		[3] hunterFormsBS.attend.Transformer
-
-		[4] Lu, W.-T., Wang, J.-C., Kong, Q., and Hung, Y.-N. (2023).
-			Music Source Separation with Band-Split RoPE Transformer.
-			https://doi.org/10.48550/arXiv.2309.02612
-		[5] Wang, J.-C., Lu, W.-T., and Won, M. (2023).
-			Mel-Band RoFormer for Music Source Separation.
-			https://arxiv.org/abs/2409.04702
-		"""
-		x = self.norm(x)
-		q, k, v = self.to_qkv(x)
-
-		# Instead of rotating?
-		q, k = map(l2norm, (q, k))
-
-		# `LinearAttention`, not "normal" `Attention`
-		q: Tensor = q * self.temperature.exp()
-
-		# attend, then out
-		out: Tensor = self.attend(q, k, v)
-
-		return self.to_out(out)
-
 class Transformer(Module):
 	"""Refine activations with a repeated attention-and-feedforward stack.
 
@@ -984,7 +785,7 @@ class Transformer(Module):
 		ff_mult: float = 4,
 		flash_attn: bool = True,
 		heads: int = 8,
-		linear_attn: bool = False,
+		linear_attn: bool = False,  # noqa: ARG002
 		norm_output: bool = True,
 		pope_embed: PoPE | None = None,
 		rotary_embed: RotaryEmbedding | None = None,
@@ -1055,17 +856,10 @@ class Transformer(Module):
 		attentionKwargs = KwargsOfAttention(dim=dim, dim_head=dim_head, heads=heads, dropout=attn_dropout,
 				flash=flash_attn, scale=scale, pope_embed=pope_embed, rotary_embed=rotary_embed, sage_attention=sage_attention)
 
-		if linear_attn:
-			self.layers = ModuleList(
-				ModuleList([LinearAttention(**attentionKwargs), FeedForward(dim=dim, mult=ff_mult, dropout=ff_dropout)])
-					for _deep in loops(depth)
-			)
-
-		else:
-			self.layers = ModuleList(
-				ModuleList([Attention(**attentionKwargs), FeedForward(dim=dim, mult=ff_mult, dropout=ff_dropout)])
-					for _deep in loops(depth)
-			)
+		self.layers = ModuleList(
+			ModuleList([Attention(**attentionKwargs), FeedForward(dim=dim, mult=ff_mult, dropout=ff_dropout)])
+				for _deep in loops(depth)
+		)
 
 		self.norm: RMSNorm | nn.Identity = RMSNorm(dim) if norm_output else nn.Identity()
 
@@ -1111,7 +905,7 @@ class Transformer(Module):
 		[3] hunterFormsBS.attend.FeedForward
 		"""
 		for sherpa in self.layers:
-			attn: Attention | LinearAttention = cast('Attention | LinearAttention', cast('ModuleList', sherpa)[0])
+			attn: Attention = cast('Attention', cast('ModuleList', sherpa)[0])
 			ff: FeedForward = cast('FeedForward', cast('ModuleList', sherpa)[1])
 			x = attn(x) + x
 			x = ff(x) + x
