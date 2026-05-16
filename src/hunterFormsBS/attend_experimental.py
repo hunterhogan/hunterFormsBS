@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 from einops import rearrange
-from hunterFormsBS.attend import Attend, FeedForward, LinearAttention
+from hunterFormsBS.attend import Attend, FeedForward
 from hunterFormsBS.theTypes import KwargsOfAttention
 from hyper_connections import get_init_and_expand_reduce_stream_functions  # NOTE There is a newer version.
 from more_itertools import loops
+from operator import neg
 from PoPE_pytorch import flash_attn_with_pope, PoPE
 from torch import nn, Tensor
 from torch.nn import Module, ModuleList
@@ -24,41 +25,42 @@ class Attention(nn.Module):
 	def __init__(
 		self,
 		dim: int,
-		heads: int = 8,
 		dim_head: int = 64,
 		dropout: float = 0.0,
-		rotary_embed: RotaryEmbedding | None = None,
+		heads: int = 8,
 		pope_embed: PoPE | None = None,
+		rotary_embed: RotaryEmbedding | None = None,
+		scale: float | None = None,
 		*,
 		flash: bool = True,
+		sage_attention: bool = False,
 		add_value_residual: bool = False,
 		learned_value_residual_mix: bool | None = None,
 	) -> None:
 		super().__init__()
+
+		# Initialize `self`, primary
 		self.heads: int = heads
-		self.scale: float = dim_head**-0.5
+		self.norm: RMSNorm = RMSNorm(dim)
+		self.pope_embed: PoPE | None = pope_embed
+		self.rotary_embed: RotaryEmbedding | None = rotary_embed
+		self.scale: float = scale or dim_head**neg(0.5)
+
+		# Initialize `self`, secondary
+		self.attend: Attend = Attend(dropout=dropout, scale=self.scale, flash=flash, sage_attention=sage_attention)
+		self.to_gates: nn.Linear = nn.Linear(dim, self.heads)
+
+		# Compute internal values
 		dim_inner: int = self.heads * dim_head
 
-		self.rotary_embed: RotaryEmbedding | None = rotary_embed
-		self.pope_embed: PoPE | None = pope_embed
-
-		if exists(self.rotary_embed) and exists(self.pope_embed):
-			message: str = "I received both `rotary_embed` and `pope_embed`, but these positional encodings are mutually exclusive."
-			raise ValueError(message)
-
-		self.attend: Attend = Attend(flash=flash, dropout=dropout)
-
-		self.norm: RMSNorm = RMSNorm(dim)
-		self.to_qkv: nn.Linear = nn.Linear(dim, dim_inner * 3, bias=False)
+		self.to_qkv: nn.Linear = nn.Linear(in_features=dim, out_features=dim_inner * 3, bias=False)
 
 		if exists(learned_value_residual_mix):
 			add_value_residual = learned_value_residual_mix
 
 		self.learned_value_residual_mix = nn.Linear(dim, self.heads) if add_value_residual else None
 
-
-		self.to_gates: nn.Linear = nn.Linear(dim, self.heads)
-		self.to_out: nn.Sequential = nn.Sequential(nn.Linear(dim_inner, dim, bias=False), nn.Dropout(dropout))
+		self.to_out: nn.Sequential = nn.Sequential(nn.Linear(in_features=dim_inner, out_features=dim, bias=False), nn.Dropout(dropout))
 
 	def forward(self, x: Tensor, value_residual: Tensor | None = None) -> tuple[Tensor, Tensor | None]:
 		x = self.norm(x)
@@ -109,21 +111,20 @@ class Transformer(Module):
 		num_residual_streams=1,
 		pope_embed: PoPE | None = None,
 		rotary_embed: RotaryEmbedding | None = None,
+		sage_attention: bool = False,
+		scale: float = 8,
 	) -> None:
 		super().__init__()
 
 		init_hyper_conn, *_streams = get_init_and_expand_reduce_stream_functions(num_residual_streams, disable=num_residual_streams == 1)
 
-		attentionKwargs = KwargsOfAttention(dim=dim, dim_head=dim_head, heads=heads, dropout=attn_dropout, flash=flash_attn)
+		attentionKwargs = KwargsOfAttention(dim=dim, dim_head=dim_head, heads=heads, dropout=attn_dropout, flash=flash_attn, sage_attention=sage_attention, pope_embed=pope_embed, rotary_embed=rotary_embed, scale=scale)
 
 		self.layers = ModuleList([])
 		for _deep in loops(depth):
-			if linear_attn:
-				attn = LinearAttention(**attentionKwargs)
-			else:
-				attn = Attention(**attentionKwargs, rotary_embed=rotary_embed, pope_embed=pope_embed, add_value_residual=add_value_residual)
-				if num_residual_streams != 1:
-					attn = init_hyper_conn(dim=dim, branch=attn)
+			attn = Attention(**attentionKwargs, add_value_residual=add_value_residual)
+			if num_residual_streams != 1:
+				attn = init_hyper_conn(dim=dim, branch=attn)
 
 			ff = FeedForward(dim=dim, mult=ff_mult, dropout=ff_dropout)
 			if num_residual_streams != 1:
@@ -137,7 +138,7 @@ class Transformer(Module):
 		first_values = None
 		if value_residual is not None:
 			for sherpa in self.layers:
-				attn: Attention | LinearAttention = cast("Attention | LinearAttention", cast("ModuleList", sherpa)[0])
+				attn: Attention = cast("Attention", cast("ModuleList", sherpa)[0])
 				ff: FeedForward = cast("FeedForward", cast("ModuleList", sherpa)[1])
 				x, next_values = attn(x, value_residual=value_residual)
 				first_values = default(first_values, next_values)
@@ -145,7 +146,7 @@ class Transformer(Module):
 		else:
 			# Compatibility with old weights
 			for sherpa in self.layers:
-				attn: Attention | LinearAttention = cast("Attention | LinearAttention", cast("ModuleList", sherpa)[0])
+				attn: Attention = cast("Attention", cast("ModuleList", sherpa)[0])
 				ff: FeedForward = cast("FeedForward", cast("ModuleList", sherpa)[1])
 				attn_out, next_values = attn(x, value_residual=value_residual)
 				first_values = default(first_values, next_values)

@@ -1,7 +1,7 @@
 # pyright: reportUnknownArgumentType=false
 # pyright: reportUnknownMemberType=false
 # pyright: reportUnknownVariableType=false
-# ruff: noqa: D100, E722, ARG002 D101 D102
+# ruff: noqa: D100, ARG002, D101, D102
 from __future__ import annotations
 
 from einops import pack, rearrange, reduce, repeat, unpack  # pyright: ignore[reportUnknownVariableType]
@@ -44,7 +44,7 @@ class BSRoformer(Module):
 		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,
 		heads: int = 8,
 		linear_transformer_depth: int = 0,
-		mask_estimator_depth: int = 1,
+		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
 		mc_hyper_conn_sinkhorn_iters: int | None = None,
@@ -80,7 +80,6 @@ class BSRoformer(Module):
 		self.stereo: bool = stereo
 		self.audio_channels: int = 2 if self.stereo else 1
 		self.num_stems: int = num_stems
-		self.linear_transformer_depth: int = linear_transformer_depth
 		self.use_torch_checkpoint: bool = use_torch_checkpoint
 		self.skip_connection: bool = skip_connection
 
@@ -88,6 +87,7 @@ class BSRoformer(Module):
 			num_bands = num_bands or len(freqs_per_bands)
 			filter_bank: Tensor = repeat_interleave(arange(num_bands), tensor(freqs_per_bands))
 			mask_filter_bank = filter_bank[None, :] == arange(num_bands)[:, None]
+			mask_estimator_depth = mask_estimator_depth or 1
 			if final_norm is None:
 				final_norm = True
 			if norm_output is None:
@@ -126,10 +126,7 @@ class BSRoformer(Module):
 			else:
 				is_first = True
 
-			tran_modules: list[nn.Module] = []
-			if self.linear_transformer_depth > 0:
-				tran_modules.append(Transformer(depth=self.linear_transformer_depth, linear_attn=True, **transformer_kwargs))
-			tran_modules.extend([
+			self.layers.append(nn.ModuleList([
 				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed,
 					add_value_residual=not is_first,
 					num_residual_streams=self.num_residual_streams,
@@ -138,8 +135,7 @@ class BSRoformer(Module):
 					add_value_residual=not is_first,
 					num_residual_streams=self.num_residual_streams,
 					**transformer_kwargs)
-			])
-			self.layers.append(nn.ModuleList(tran_modules))
+			]))
 
 		# stft
 
@@ -159,7 +155,7 @@ class BSRoformer(Module):
 		self.band_split: BandSplit = BandSplit(dim=dim, dim_inputs=freqs_per_bands_with_complex)
 		self.mask_estimators: ModuleList = nn.ModuleList([])
 		for _stem_index in loops(self.num_stems):
-			self.mask_estimators.append(MaskEstimator(dim, freqs_per_bands_with_complex, depth=mask_estimator_depth, mlp_expansion_factor=mlp_expansion_factor))
+			self.mask_estimators.append(MaskEstimator(dim, freqs_per_bands_with_complex, depth=raiseIfNone(mask_estimator_depth, f'I received {mask_estimator_depth = }, but I need a type `int` > 0. If you are migrating a `BSRoformer` checkpoint and the old default value was `2`, then you probably want `mask_estimator_depth = 1` in this package.'), mlp_expansion_factor=mlp_expansion_factor))
 
 		freqs: int = stft_n_fft // 2 + 1
 		repeated_freq_indices: Tensor = repeat(torch.arange(freqs), 'f -> b f', b=num_bands)
@@ -203,7 +199,7 @@ class BSRoformer(Module):
 		# Since it's tedious to define whether we're on correct MacOS version - simple try-catch is used
 		try:
 			stft_repr: Tensor = torch.stft(raw_audio, **self.stft_kwargs, window=stft_window, return_complex=True)
-		except:
+		except RuntimeError:
 			stft_repr = torch.stft(
 				raw_audio.cpu() if x_is_mps else raw_audio,
 				**self.stft_kwargs,
@@ -246,15 +242,6 @@ class BSRoformer(Module):
 			layer: ModuleList = cast('ModuleList', transformer_block)
 			time_transformer: Transformer = cast('Transformer', layer[-2])
 			freq_transformer: Transformer = cast('Transformer', layer[-1])
-
-			if self.linear_transformer_depth:
-				linear_transformer: Transformer = cast('Transformer', layer[0])
-				x, ft_ps = pack([x], 'b * d')
-				if self.use_torch_checkpoint:
-					x = checkpoint(linear_transformer, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
-				else:
-					x = linear_transformer(x)
-				(x,) = unpack(x, ft_ps, 'b * d')
 
 			if self.skip_connection:
 				# Sum all previous
@@ -337,7 +324,7 @@ class BSRoformer(Module):
 
 		try:
 			recon_audio: Tensor = cast('Callable[..., Tensor]', torch.istft)(stft_repr, **self.stft_kwargs, window=stft_window, return_complex=False, length=istft_length) # pyright: ignore[reportUnknownMemberType]
-		except:
+		except RuntimeError:
 			recon_audio = cast('Callable[..., Tensor]', torch.istft)( # pyright: ignore[reportUnknownMemberType]
 				stft_repr.cpu() if x_is_mps else stft_repr,
 				**self.stft_kwargs,

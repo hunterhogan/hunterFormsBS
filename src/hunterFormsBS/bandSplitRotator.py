@@ -209,7 +209,7 @@ class BandSplitRotator(Module):
 		multi_stft_resolution_loss_weight: float = 1.0,
 		multi_stft_resolutions_window_sizes: tuple[int, ...] = (4096, 2048, 1024, 512, 256),
 		multi_stft_window_fn: Callable[..., Tensor] = halfsineTensor,
-		norm_output: bool = False,
+		norm_output: bool | None = None,
 		num_bands: int | None = None,
 		num_stems: int = 1,
 		sample_rate: float | None = None,
@@ -412,6 +412,8 @@ class BandSplitRotator(Module):
 				mask_estimator_depth = mask_estimator_depth or 1
 				if final_norm is None:
 					final_norm = False
+				if norm_output is None:
+					norm_output = True
 				if zero_dc is None:
 					zero_dc = False
 			else:
@@ -422,6 +424,8 @@ class BandSplitRotator(Module):
 				mask_estimator_depth = mask_estimator_depth or 1
 				if final_norm is None:
 					final_norm = True
+				if norm_output is None:
+					norm_output = False
 				if zero_dc is None:
 					zero_dc = True
 		elif num_bands is None:
@@ -444,7 +448,8 @@ class BandSplitRotator(Module):
 			freq_pope_embed = None
 
 		transformer_kwargs: KwargsTransformer = KwargsTransformer(attn_dropout=attn_dropout, dim_head=dim_head,
-			dim=dim, ff_dropout=ff_dropout, flash_attn=flash_attn, heads=heads, norm_output=norm_output,
+			dim=dim, ff_dropout=ff_dropout, flash_attn=flash_attn, heads=heads,
+			norm_output=raiseIfNone(norm_output, f'I received {norm_output = }, but I need a type `bool` value or a "truthy" value.'),
 		)
 
 		self.layers: ModuleList = ModuleList([])

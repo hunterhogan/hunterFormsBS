@@ -520,7 +520,6 @@ class Attention(nn.Module):
 
 		# Initialize `self`, secondary
 		self.attend: Attend = Attend(dropout=dropout, scale=self.scale, flash=flash, sage_attention=sage_attention)
-		# "normal" `Attention`, not `LinearAttention`
 		self.to_gates: nn.Linear = nn.Linear(dim, self.heads)
 
 		# Compute internal values
@@ -615,7 +614,6 @@ class Attention(nn.Module):
 			out = self.attend(q, k, v)
 
 		# after attend
-		# "normal" `Attention`, not `LinearAttention`
 		gates: Tensor = self.to_gates(x)
 		out = out * rearrange(gates, 'b n h -> b h n 1').sigmoid()
 

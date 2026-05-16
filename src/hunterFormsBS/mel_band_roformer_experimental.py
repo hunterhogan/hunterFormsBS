@@ -44,7 +44,7 @@ class MelBandRoformer(Module):
 		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,
 		heads: int = 8,
 		linear_transformer_depth: int = 0,
-		mask_estimator_depth: int = 1,
+		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
 		mc_hyper_conn_sinkhorn_iters: int | None = None,
@@ -55,11 +55,11 @@ class MelBandRoformer(Module):
 		multi_stft_resolutions_window_sizes: tuple[int, ...] = (4096, 2048, 1024, 512, 256),
 		multi_stft_window_fn: Callable[..., Tensor] = halfsineTensor,
 		norm_output: bool | None = None,
-		num_bands: int = 60,
+		num_bands: int | None = None,
 		num_residual_fracs: int | None = None,
 		num_residual_streams: int = 1,
 		num_stems: int = 1,
-		sample_rate: float | None = 44100,
+		sample_rate: float | None = None,
 		skip_connection: bool = False,
 		stereo: bool = False,
 		stft_hop_length: int = 512,
@@ -80,7 +80,6 @@ class MelBandRoformer(Module):
 		self.stereo: bool = stereo
 		self.audio_channels: int = 2 if self.stereo else 1
 		self.num_stems: int = num_stems
-		self.linear_transformer_depth: int = linear_transformer_depth
 		self.use_torch_checkpoint: bool = use_torch_checkpoint
 		self.skip_connection: bool = skip_connection
 
@@ -138,10 +137,7 @@ class MelBandRoformer(Module):
 			else:
 				is_first = True
 
-			tran_modules: list[nn.Module] = []
-			if self.linear_transformer_depth > 0:
-				tran_modules.append(Transformer(depth=self.linear_transformer_depth, linear_attn=True, **transformer_kwargs))
-			tran_modules.extend([
+			self.layers.append(nn.ModuleList([
 				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed,
 					add_value_residual=not is_first,
 					num_residual_streams=self.num_residual_streams,
@@ -150,8 +146,7 @@ class MelBandRoformer(Module):
 					add_value_residual=not is_first,
 					num_residual_streams=self.num_residual_streams,
 					**transformer_kwargs)
-			])
-			self.layers.append(nn.ModuleList(tran_modules))
+			]))
 
 		# stft
 
@@ -171,7 +166,7 @@ class MelBandRoformer(Module):
 		self.band_split: BandSplit = BandSplit(dim=dim, dim_inputs=freqs_per_bands_with_complex)
 		self.mask_estimators: ModuleList = nn.ModuleList([])
 		for _stem_index in loops(self.num_stems):
-			self.mask_estimators.append(MaskEstimator(dim, freqs_per_bands_with_complex, depth=mask_estimator_depth, mlp_expansion_factor=mlp_expansion_factor))
+			self.mask_estimators.append(MaskEstimator(dim, freqs_per_bands_with_complex, depth=raiseIfNone(mask_estimator_depth, f'I received {mask_estimator_depth = }, but I need a type `int` > 0. If you are migrating a `BSRoformer` checkpoint and the old default value was `2`, then you probably want `mask_estimator_depth = 1` in this package.'), mlp_expansion_factor=mlp_expansion_factor))
 
 		freqs: int = stft_n_fft // 2 + 1
 		repeated_freq_indices: Tensor = repeat(torch.arange(freqs), 'f -> b f', b=num_bands)
@@ -258,15 +253,6 @@ class MelBandRoformer(Module):
 			layer: ModuleList = cast('ModuleList', transformer_block)
 			time_transformer: Transformer = cast('Transformer', layer[-2])
 			freq_transformer: Transformer = cast('Transformer', layer[-1])
-
-			if self.linear_transformer_depth:
-				linear_transformer: Transformer = cast('Transformer', layer[0])
-				x, ft_ps = pack([x], 'b * d')
-				if self.use_torch_checkpoint:
-					x = checkpoint(linear_transformer, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
-				else:
-					x = linear_transformer(x)
-				(x,) = unpack(x, ft_ps, 'b * d')
 
 			if self.skip_connection:
 				# Sum all previous
