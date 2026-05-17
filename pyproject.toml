@@ -33,7 +33,7 @@ classifiers = [
 ]
 dependencies = [
   "einops>=0.8.2",
-  "hunterMakesPy>=0.5.3",
+  "hunterMakesPy",
   "hyper-connections>=0.4.10",
   "more-itertools",
   "opt-einsum>=3.4.0",
@@ -41,8 +41,8 @@ dependencies = [
   "pope-pytorch",
   "rotary-embedding-torch",
   "torch>=2.0.0",
-  "torch-einops-kit>=0.1.1",
-  "Z0Z_tools>=1.0.2",
+  "torch-einops-kit",
+  "Z0Z_tools",
 ]
 
 [project.urls]
