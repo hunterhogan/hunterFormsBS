@@ -79,10 +79,12 @@ class ParametersAttention(TypedDict):
 	dim: int
 	flash: bool
 	heads: int
+	learned_value_residual_mix: bool | None
 	pope_embed: PoPE | None
 	rotary_embed: RotaryEmbedding | None
 	sage_attention: bool
 	scale: float | None
+	use_value_residual_learning: bool
 
 class ParametersComputeLoss(TypedDict):
 	"""Collect multi-resolution STFT loss settings.
@@ -161,7 +163,9 @@ class ParametersTransformer(TypedDict):
 	ff_mult: float | None
 	flash_attn: bool
 	heads: int
+	learned_value_residual_mix: bool | None
 	linear_attn: bool
 	norm_output: bool
+	num_residual_streams: int
 	sage_attention: bool
 	scale: float | None

@@ -189,8 +189,8 @@ class BandSplitRotator(Module):
 		self,
 		dim: int,
 		*,
-		attn_dropout: float = 0.0,
 		depth: int,
+		attn_dropout: float = 0.0,
 		dim_freqs_in: int = 1025,  # noqa: ARG002
 		dim_head: int = 64,
 		ff_dropout: float = 0.0,
@@ -200,10 +200,12 @@ class BandSplitRotator(Module):
 		freq_transformer_depth: int = 2,
 		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,
 		heads: int = 8,
+		learned_value_residual_mix: bool | None = None,
 		linear_transformer_depth: int = 0,
 		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
+		mc_hyper_conn_sinkhorn_iters: int | None = None,  # noqa: ARG002
 		mlp_expansion_factor: int = 4,
 		multi_stft_hop_size: int = 147,
 		multi_stft_normalized: bool = False,
@@ -212,13 +214,15 @@ class BandSplitRotator(Module):
 		multi_stft_window_fn: Callable[..., Tensor] = halfsineTensor,
 		norm_output: bool | None = None,
 		num_bands: int | None = None,
+		num_residual_fracs: int | None = None,  # noqa: ARG002
+		num_residual_streams: int = 1,
 		num_stems: int = 1,
+		sage_attention: bool = False,
 		sample_rate: float | None = None,
+		scale: float | None = None,
 		skip_connection: bool = False,
 		stereo: bool = False,
 		stft_hop_length: int = 512,
-		sage_attention: bool = False,
-		scale: float | None = None,
 		stft_n_fft: int = 2048,
 		stft_normalized: bool = False,
 		stft_win_length: int = 1024,
@@ -226,6 +230,7 @@ class BandSplitRotator(Module):
 		time_transformer_depth: int = 2,
 		use_pope: bool = False,
 		use_torch_checkpoint: bool = False,
+		use_value_residual_learning: bool = False,
 		zero_dc: bool | None = None,
 	) -> None:
 		"""Configure the unified RoFormer variant and its band front end.
@@ -392,6 +397,7 @@ class BandSplitRotator(Module):
 
 		self.stereo: bool = stereo
 		self.audio_channels: int = 2 if self.stereo else 1
+		self.num_residual_streams: int = num_residual_streams
 		self.num_stems: int = num_stems
 		self.skip_connection: bool = skip_connection
 		self.use_torch_checkpoint: bool = use_torch_checkpoint
@@ -447,8 +453,10 @@ class BandSplitRotator(Module):
 			ff_mult=ff_mult,
 			flash_attn=flash_attn,
 			heads=heads,
+			learned_value_residual_mix=learned_value_residual_mix,
 			linear_attn=(0 < linear_transformer_depth),
 			norm_output=raiseIfNone(norm_output, f'I received {norm_output = }, but I need a type `bool` value or a "truthy" value.'),
+			num_residual_streams=self.num_residual_streams,
 			sage_attention=sage_attention,
 			scale=scale,
 		)
@@ -466,8 +474,10 @@ class BandSplitRotator(Module):
 
 		self.layers: ModuleList = ModuleList([
 			nn.ModuleList([
-				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed, **transformer_kwargs)
-				, Transformer(depth=freq_transformer_depth, rotary_embed=freq_rotary_embed, pope_embed=freq_pope_embed, **transformer_kwargs)
+				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed,
+				use_value_residual_learning=use_value_residual_learning, **transformer_kwargs)
+				, Transformer(depth=freq_transformer_depth, rotary_embed=freq_rotary_embed, pope_embed=freq_pope_embed,
+				use_value_residual_learning=use_value_residual_learning, **transformer_kwargs)
 			])
 			for _deep in loops(depth)
 		])

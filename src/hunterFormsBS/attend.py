@@ -56,7 +56,7 @@ from torch import einsum, nn, Tensor
 from torch.nn import Module, ModuleList
 from torch_einops_kit import exists, once
 from torch_einops_kit.scaleValues import RMSNorm
-from typing import cast, TYPE_CHECKING
+from typing import cast, TYPE_CHECKING, overload
 import torch
 import torch.nn.functional as F
 
@@ -457,6 +457,8 @@ class Attention(nn.Module):
 		*,
 		flash: bool = True,
 		sage_attention: bool = False,
+		use_value_residual_learning: bool = False,
+		learned_value_residual_mix: bool | None = None,
 	) -> None:
 		"""Set up an attention block for a chosen width and head layout.
 
@@ -526,7 +528,23 @@ class Attention(nn.Module):
 		self.to_qkv: nn.Linear = nn.Linear(in_features=dim, out_features=dim_inner * 3, bias=False)
 		self.to_out: nn.Sequential = nn.Sequential(nn.Linear(in_features=dim_inner, out_features=dim, bias=False), nn.Dropout(attn_dropout))
 
-	def forward(self, x: Tensor) -> Tensor:
+		self.learned_value_residual_mix: nn.Linear | None = None
+
+		if ((use_value_residual_learning is True and learned_value_residual_mix is None)
+			or (learned_value_residual_mix is True)):
+			self.learned_value_residual_mix = nn.Linear(dim, self.heads)
+
+		"""Original code because I have not tested the new code:
+		if exists(learned_value_residual_mix):
+			use_value_residual_learning = learned_value_residual_mix
+
+		self.learned_value_residual_mix = nn.Linear(dim, self.heads) if use_value_residual_learning else None"""
+
+	@overload
+	def forward(self, x: Tensor, value_residual: None = None) -> Tensor:...
+	@overload
+	def forward(self, x: Tensor, value_residual: Tensor) -> tuple[Tensor, Tensor | None]:...
+	def forward(self, x: Tensor, value_residual: Tensor | None = None) -> Tensor | tuple[Tensor, Tensor | None]:
 		"""Compute gated multi-head attention output from activations `x`.
 
 		You can use `forward` to normalize activations `x`, project activation `Tensor` `x` into
@@ -601,8 +619,15 @@ class Attention(nn.Module):
 
 		q, k, v = rearrange(self.to_qkv(x), 'b n (qkv h d) -> qkv b h n d', qkv=3, h=self.heads)
 
+		original_values: Tensor = v
+
+		if exists(self.learned_value_residual_mix):
+			mix: Tensor = self.learned_value_residual_mix(x)
+			mix = rearrange(mix, 'b n h -> b h n 1').sigmoid()
+			v: Tensor = v.lerp(raiseIfNone(value_residual), mix)
+
 		if exists(self.pope_embed):
-			out: Tensor = flash_attn_with_pope(q, k, v, pos_emb=self.pope_embed(q.shape[-2]), softmax_scale=self.scale)
+			out = flash_attn_with_pope(q, k, v, pos_emb=self.pope_embed(q.shape[-2]), softmax_scale=self.scale)
 		elif exists(self.rotary_embed):
 			q: Tensor = self.rotary_embed.rotate_queries_or_keys(q)
 			k: Tensor = self.rotary_embed.rotate_queries_or_keys(k)
@@ -615,7 +640,10 @@ class Attention(nn.Module):
 		out = out * rearrange(gates, 'b n h -> b h n 1').sigmoid()
 
 		out = rearrange(out, 'b h n d -> b n (h d)')
-		return self.to_out(out)
+		out = self.to_out(out)
+		if exists(value_residual):
+			out = (out, original_values)
+		return out
 
 class FeedForward(Module):
 	"""Transform activations with a position-wise expansion-and-projection block.
@@ -772,20 +800,25 @@ class Transformer(Module):
 	def __init__(
 		self,
 		*,
-		attn_dropout: float = 0.0,
 		depth: int,
+		attn_dropout: float = 0.0,
 		dim_head: int = 64,
 		dim: int,
 		ff_dropout: float = 0.0,
 		ff_mult: float | None = 4,
 		flash_attn: bool = True,
 		heads: int = 8,
+		learned_value_residual_mix: bool | None = None,
 		linear_attn: bool = False,  # noqa: ARG002
+		mc_hyper_conn_sinkhorn_iters: int | None = None,  # noqa: ARG002
 		norm_output: bool = True,
+		num_residual_fracs: int | None = None,  # noqa: ARG002
+		num_residual_streams: int = 1,  # noqa: ARG002
 		pope_embed: PoPE | None = None,
 		rotary_embed: RotaryEmbedding | None = None,
 		sage_attention: bool = False,
 		scale: float | None = None,
+		use_value_residual_learning: bool = False,
 	) -> None:
 		"""Set up a transformer stack for feature width `dim` and layer count `depth`.
 
@@ -849,15 +882,17 @@ class Transformer(Module):
 		super().__init__()
 
 		parametersAttention = ParametersAttention(
+			attn_dropout=attn_dropout,
 			dim_head=dim_head,
 			dim=dim,
-			attn_dropout=attn_dropout,
 			flash=flash_attn,
 			heads=heads,
+			learned_value_residual_mix=learned_value_residual_mix,
 			pope_embed=pope_embed,
 			rotary_embed=rotary_embed,
 			sage_attention=sage_attention,
 			scale=scale,
+			use_value_residual_learning=use_value_residual_learning,
 		)
 
 		self.layers = ModuleList(
