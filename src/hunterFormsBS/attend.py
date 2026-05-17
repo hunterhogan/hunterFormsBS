@@ -719,7 +719,9 @@ class FeedForward(Module):
 			https://context7.com/pytorch/pytorch
 		"""
 		super().__init__()
-		dim_inner: int = int(dim * raiseIfNone(ff_mult))
+		if ff_mult is None:
+			ff_mult = 4.0
+		dim_inner: int = int(dim * ff_mult)
 		self.net: nn.Sequential = nn.Sequential(
 			RMSNorm(dim), nn.Linear(dim, dim_inner), nn.GELU(), nn.Dropout(ff_dropout), nn.Linear(dim_inner, dim), nn.Dropout(ff_dropout)
 		)
