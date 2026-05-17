@@ -30,8 +30,8 @@ class MelBandRoformer(Module):
 		self,
 		dim: int,
 		*,
-		attn_dropout: float = 0.0,
 		depth: int,
+		attn_dropout: float = 0.0,
 		dim_freqs_in: int = 1025,  # noqa: ARG002
 		dim_head: int = 64,
 		ff_dropout: float = 0.0,
@@ -41,6 +41,7 @@ class MelBandRoformer(Module):
 		freq_transformer_depth: int = 2,
 		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,  # noqa: ARG002
 		heads: int = 8,
+		learned_value_residual_mix: bool | None = None,
 		linear_transformer_depth: int = 0,
 		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
@@ -57,12 +58,12 @@ class MelBandRoformer(Module):
 		num_residual_fracs: int | None = None,  # noqa: ARG002
 		num_residual_streams: int = 1,
 		num_stems: int = 1,
+		sage_attention: bool = False,
 		sample_rate: float | None = None,
+		scale: float | None = None,
 		skip_connection: bool = False,
 		stereo: bool = False,
 		stft_hop_length: int = 512,
-		sage_attention: bool = False,
-		scale: float | None = None,
 		stft_n_fft: int = 2048,
 		stft_normalized: bool = False,
 		stft_win_length: int = 1024,
@@ -120,8 +121,10 @@ class MelBandRoformer(Module):
 			ff_mult=ff_mult,
 			flash_attn=flash_attn,
 			heads=heads,
+			learned_value_residual_mix=learned_value_residual_mix,
 			linear_attn=(0 < linear_transformer_depth),
 			norm_output=raiseIfNone(norm_output, f'I received {norm_output = }, but I need a type `bool` value or a "truthy" value.'),
+			num_residual_streams=self.num_residual_streams,
 			sage_attention=sage_attention,
 			scale=scale,
 		)
@@ -140,11 +143,9 @@ class MelBandRoformer(Module):
 		self.layers: ModuleList = ModuleList([
 			nn.ModuleList([
 				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed,
-					use_value_residual_learning=use_value_residual_learning and layer_index > 0,
-					num_residual_streams=self.num_residual_streams, **transformer_kwargs)
+					use_value_residual_learning=use_value_residual_learning and layer_index > 0, **transformer_kwargs)
 				, Transformer(depth=freq_transformer_depth, rotary_embed=freq_rotary_embed, pope_embed=freq_pope_embed,
-					use_value_residual_learning=use_value_residual_learning and layer_index > 0,
-					num_residual_streams=self.num_residual_streams, **transformer_kwargs)
+					use_value_residual_learning=use_value_residual_learning and layer_index > 0, **transformer_kwargs)
 			])
 			for layer_index in range(depth)
 		])
