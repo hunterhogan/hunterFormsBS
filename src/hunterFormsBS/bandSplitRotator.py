@@ -34,6 +34,7 @@ from hunterFormsBS.attend import Transformer
 from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, mask_filter_bank_mel_band_default, MaskEstimator
 from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersSTFT, ParametersTransformer
 from hunterMakesPy import raiseIfNone
+from hyper_connections import get_init_and_expand_reduce_stream_functions  # NOTE There is a newer version.
 from more_itertools import loops
 from operator import mul
 from PoPE_pytorch import PoPE
@@ -41,7 +42,7 @@ from rotary_embedding_torch import RotaryEmbedding
 from torch import arange, nn, repeat_interleave, tensor, Tensor
 from torch.nn import Module, ModuleList
 from torch.utils.checkpoint import checkpoint  # pyright: ignore[reportUnknownVariableType]
-from torch_einops_kit import exists
+from torch_einops_kit import default, exists
 from torch_einops_kit.einops import pack_one, unpack_one
 from torch_einops_kit.scaleValues import RMSNorm
 from typing import cast, TYPE_CHECKING
@@ -475,11 +476,11 @@ class BandSplitRotator(Module):
 		self.layers: ModuleList = ModuleList([
 			nn.ModuleList([
 				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed,
-				use_value_residual_learning=use_value_residual_learning, **transformer_kwargs)
+					use_value_residual_learning=use_value_residual_learning and layer_index > 0, **transformer_kwargs)
 				, Transformer(depth=freq_transformer_depth, rotary_embed=freq_rotary_embed, pope_embed=freq_pope_embed,
-				use_value_residual_learning=use_value_residual_learning, **transformer_kwargs)
+					use_value_residual_learning=use_value_residual_learning and layer_index > 0, **transformer_kwargs)
 			])
-			for _deep in loops(depth)
+			for layer_index in range(depth)
 		])
 
 		# stft
@@ -518,6 +519,9 @@ class BandSplitRotator(Module):
 		self.multi_stft: ParametersComputeLoss = ParametersComputeLoss(hop_length=multi_stft_hop_size, loss_weight=multi_stft_resolution_loss_weight,
 			n_fft=stft_n_fft, normalized=multi_stft_normalized, window_fn=multi_stft_window_fn, window_sizes=multi_stft_resolutions_window_sizes,
 		)
+
+		if use_value_residual_learning:
+			_init_hyper_conn, self.expand_stream, self.reduce_stream = get_init_and_expand_reduce_stream_functions(self.num_residual_streams, disable=self.num_residual_streams == 1)
 
 	def forward(self, raw_audio: Tensor, target: Tensor | None = None, active_stem_ids: list[int] | None = None, *, return_loss_breakdown: bool = False) -> Tensor | tuple[Tensor, tuple[Tensor, Tensor]]:
 		"""Separate `raw_audio` into stem waveform output or training loss.
@@ -699,6 +703,11 @@ class BandSplitRotator(Module):
 			x = self.band_split(x)
 
 		# axial / hierarchical attention
+		time_v_residual: Tensor | None = None
+		freq_v_residual: Tensor | None = None
+
+		if self.num_residual_streams != 1:
+			x = self.expand_stream(x)
 
 		store: list[Tensor | None] = [None] * len(self.layers)
 		for i, transformer_block in enumerate(self.layers):
@@ -714,24 +723,43 @@ class BandSplitRotator(Module):
 			x = rearrange(x, 'b t f d -> b f t d')
 			x, ps = pack([x], '* t d')
 
-			if self.use_torch_checkpoint:
-				x = checkpoint(time_transformer, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
-			else:
-				x = time_transformer(x)
+			if self.num_residual_streams != 1:
+				if self.use_torch_checkpoint:
+					twoTupleTensors: tuple[Tensor, Tensor] = checkpoint(time_transformer, x, time_v_residual, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType, reportGeneralTypeIssues]
+					x, next_time_v_residual = twoTupleTensors
+				else:
+					x, next_time_v_residual = time_transformer(x, value_residual=time_v_residual)
+				time_v_residual = default(time_v_residual, next_time_v_residual)
+			else:  # noqa: PLR5501
+				if self.use_torch_checkpoint:
+					x = checkpoint(time_transformer, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
+				else:
+					x = time_transformer(x)
 
 			(x,) = unpack(x, ps, '* t d')
 			x = rearrange(x, 'b f t d -> b t f d')
 			x, ps = pack([x], '* f d')
 
-			if self.use_torch_checkpoint:
-				x = checkpoint(freq_transformer, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
-			else:
-				x = freq_transformer(x)
+			if self.num_residual_streams != 1:
+				if self.use_torch_checkpoint:
+					twoTupleTensors: tuple[Tensor, Tensor] = checkpoint(freq_transformer, x, freq_v_residual, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType, reportGeneralTypeIssues]
+					x, next_freq_v_residual = twoTupleTensors
+				else:
+					x, next_freq_v_residual = freq_transformer(x, value_residual=freq_v_residual)
+				freq_v_residual = default(freq_v_residual, next_freq_v_residual)
+			else:  # noqa: PLR5501
+				if self.use_torch_checkpoint:
+					x = checkpoint(freq_transformer, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
+				else:
+					x = freq_transformer(x)
 
 			(x,) = unpack(x, ps, '* f d')
 
 			if self.skip_connection:
 				store[i] = x
+
+		if self.num_residual_streams != 1:
+			x = self.reduce_stream(x)
 
 		x = self.final_norm(x)
 
