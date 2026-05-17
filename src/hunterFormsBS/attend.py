@@ -48,15 +48,16 @@ from __future__ import annotations
 from einops import rearrange
 from hunterFormsBS.theTypes import FlashAttentionConfig, ParametersAttention
 from hunterMakesPy import raiseIfNone
+from hyper_connections import get_init_and_expand_reduce_stream_functions  # NOTE There is a newer version.
 from more_itertools import loops
 from operator import neg
 from packaging import version
 from PoPE_pytorch import flash_attn_with_pope, PoPE
 from torch import einsum, nn, Tensor
 from torch.nn import Module, ModuleList
-from torch_einops_kit import exists, once
+from torch_einops_kit import exists, once, default
 from torch_einops_kit.scaleValues import RMSNorm
-from typing import cast, TYPE_CHECKING, overload
+from typing import cast, overload, TYPE_CHECKING
 import torch
 import torch.nn.functional as F
 
@@ -815,7 +816,7 @@ class Transformer(Module):
 		mc_hyper_conn_sinkhorn_iters: int | None = None,  # noqa: ARG002
 		norm_output: bool = True,
 		num_residual_fracs: int | None = None,  # noqa: ARG002
-		num_residual_streams: int = 1,  # noqa: ARG002
+		num_residual_streams: int = 1,
 		pope_embed: PoPE | None = None,
 		rotary_embed: RotaryEmbedding | None = None,
 		sage_attention: bool = False,
@@ -903,9 +904,35 @@ class Transformer(Module):
 				for _deep in loops(depth)
 		)
 
+		if num_residual_streams != 1:
+			init_hyper_conn, *_streams = get_init_and_expand_reduce_stream_functions(
+				num_residual_streams, disable=(num_residual_streams == 1)
+			)
+			for moduleList in self.layers:
+				moduleList = cast('ModuleList', moduleList)
+				for nnModule in moduleList:
+					init_hyper_conn(dim=dim, branch=nnModule)
+
+		"""Original code because I have not tested the new code:
+		self.layers = ModuleList([])
+		for _deep in loops(depth):
+			attn = Attention(**parametersAttention, use_value_residual_learning=use_value_residual_learning)
+			if num_residual_streams != 1:
+				attn = init_hyper_conn(dim=dim, branch=attn)
+
+			ff = FeedForward(dim=dim, ff_mult=ff_mult, ff_dropout=ff_dropout)
+			if num_residual_streams != 1:
+				ff = init_hyper_conn(dim=dim, branch=ff)
+
+			self.layers.append(ModuleList([attn, ff]))"""
+
 		self.norm: RMSNorm | nn.Identity = RMSNorm(dim) if norm_output else nn.Identity()
 
-	def forward(self, x: Tensor) -> Tensor:
+	@overload
+	def forward(self, x: Tensor, value_residual: None = None) -> Tensor:...
+	@overload
+	def forward(self, x: Tensor, value_residual: Tensor) -> tuple[Tensor, Tensor | None]:...
+	def forward(self, x: Tensor, value_residual: Tensor | None = None) -> Tensor | tuple[Tensor, Tensor | None]:
 		"""Transform activations `x` through the residual stack.
 
 		You can use `forward` when `x` already has batch axis, sequence axis, and feature axis.
@@ -946,10 +973,23 @@ class Transformer(Module):
 
 		[3] hunterFormsBS.attend.FeedForward
 		"""
-		for sherpa in self.layers:
-			attn: Attention = cast('Attention', cast('ModuleList', sherpa)[0])
-			ff: FeedForward = cast('FeedForward', cast('ModuleList', sherpa)[1])
-			x = attn(x) + x
-			x = ff(x) + x
+		first_values: Tensor | None = None
+		if value_residual is not None:
+			for sherpa in self.layers:
+				attn: Attention = cast('Attention', cast('ModuleList', sherpa)[0])
+				ff: FeedForward = cast('FeedForward', cast('ModuleList', sherpa)[1])
+				x, next_values = attn(x, value_residual=value_residual)
+				first_values = default(first_values, next_values)
+				x = ff(x)
+		else:
+			for sherpa in self.layers:
+				attn: Attention = cast('Attention', cast('ModuleList', sherpa)[0])
+				ff: FeedForward = cast('FeedForward', cast('ModuleList', sherpa)[1])
+				x = attn(x) + x
+				x = ff(x) + x
 
-		return self.norm(x)
+		x = self.norm(x)
+
+		if value_residual is not None:
+			return x, first_values
+		return x
