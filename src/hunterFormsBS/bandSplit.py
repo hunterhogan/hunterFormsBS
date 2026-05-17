@@ -37,7 +37,7 @@ References
 from __future__ import annotations
 
 from einops import rearrange
-from hunterFormsBS.theTypes import ComputeLoss, KwargsSTFT
+from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersSTFT
 from torch import nn, Tensor, tensor
 from torch.nn import Module, ModuleList
 from torch_einops_kit import default
@@ -150,10 +150,10 @@ class BandSplit(Module):
 		return torch.stack(outs, dim=-2)
 
 @overload
-def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], multi_stft: ComputeLoss, *, return_loss_breakdown: Literal[True]) -> tuple[Tensor, tuple[Tensor, Tensor]]:...
+def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], multi_stft: ParametersComputeLoss, *, return_loss_breakdown: Literal[True]) -> tuple[Tensor, tuple[Tensor, Tensor]]:...
 @overload
-def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], multi_stft: ComputeLoss, *, return_loss_breakdown: Literal[False] = False) -> Tensor:...
-def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], multi_stft: ComputeLoss, *, return_loss_breakdown: bool = False) -> Tensor | tuple[Tensor, tuple[Tensor, Tensor]]:
+def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], multi_stft: ParametersComputeLoss, *, return_loss_breakdown: Literal[False] = False) -> Tensor:...
+def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], multi_stft: ParametersComputeLoss, *, return_loss_breakdown: bool = False) -> Tensor | tuple[Tensor, tuple[Tensor, Tensor]]:
 	"""Compute waveform and multi-resolution spectrogram loss for selected stems.
 
 	You can use `lossComputation` to train one separator that reconstructs waveform audio and matches
@@ -178,7 +178,7 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 		reconstructions.
 	stem_ids : list[int]
 		Stem index list used to select the supervised subset from `target[:, stem_ids]`.
-	multi_stft : ComputeLoss
+	multi_stft : ParametersComputeLoss
 		Multi-resolution STFT configuration. `multi_stft` supplies `window_sizes`, `hop_length`,
 		`n_fft`, `normalized`, `window_fn`, and `loss_weight`.
 	return_loss_breakdown : bool = False
@@ -257,7 +257,7 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 	multi_stft_resolution_loss: Tensor = tensor(0.0, device=device)
 
 	for window_size in multi_stft['window_sizes']:
-		res_stft_kwargs = KwargsSTFT(
+		res_stft_kwargs = ParametersSTFT(
 			hop_length=multi_stft['hop_length'],
 			n_fft=max(window_size, multi_stft['n_fft']),
 			normalized=multi_stft['normalized'],

@@ -9,15 +9,15 @@ positional arguments. The types are consumed by `BandSplitRotator` [1], `BandSpl
 Contents
 --------
 Classes
-    ComputeLoss
+    ParametersComputeLoss
         Collect multi-resolution STFT loss settings passed to `lossComputation`.
     FlashAttentionConfig
         Store PyTorch scaled-dot-product-attention backend flags for `Attend`.
-    KwargsOfAttention
+    ParametersAttention
         Collect shared keyword arguments for one attention-block configuration.
-    KwargsSTFT
+    ParametersSTFT
         Collect shared keyword arguments for forward and inverse STFT calls.
-    KwargsTransformer
+    ParametersTransformer
         Collect shared keyword arguments for one transformer-block configuration.
 
 References
@@ -38,10 +38,56 @@ if TYPE_CHECKING:
 	from rotary_embedding_torch import RotaryEmbedding
 	from torch import Tensor
 
-class ComputeLoss(TypedDict):
+class FlashAttentionConfig(NamedTuple):
+	"""Store scaled-dot-product-attention backend flags.
+
+	You can use `FlashAttentionConfig` to keep the backend switches together.
+
+	Attributes
+	----------
+	enable_flash : bool
+		Whether the flash backend may run.
+	enable_math : bool
+		Whether the math backend may run.
+	enable_mem_efficient : bool
+		Whether the memory-efficient backend may run.
+	"""
+	enable_flash: bool
+	enable_math: bool
+	enable_mem_efficient: bool
+
+class ParametersAttention(TypedDict):
+	"""Collect shared attention keyword arguments.
+
+	You can use `ParametersAttention` to keep one attention-block configuration together.
+
+	Attributes
+	----------
+	dim_head : int
+		Size of the per-head feature ***dim***ension.
+	dim : int
+		Size of the model feature ***dim***ension.
+	attn_dropout : float
+		Dropout probability inside the attention block.
+	flash : bool
+		Whether the attention block may use the flash path.
+	heads : int
+		Number of attention heads.
+	"""
+	attn_dropout: float
+	dim_head: int
+	dim: int
+	flash: bool
+	heads: int
+	pope_embed: PoPE | None
+	rotary_embed: RotaryEmbedding | None
+	sage_attention: bool
+	scale: float | None
+
+class ParametersComputeLoss(TypedDict):
 	"""Collect multi-resolution STFT loss settings.
 
-	You can use `ComputeLoss` to keep the shared STFT loss settings together.
+	You can use `ParametersComputeLoss` to keep the shared STFT loss settings together.
 
 	Attributes
 	----------
@@ -65,56 +111,10 @@ class ComputeLoss(TypedDict):
 	normalized: bool
 	window_fn: Callable[..., Tensor]
 
-class FlashAttentionConfig(NamedTuple):
-	"""Store scaled-dot-product-attention backend flags.
-
-	You can use `FlashAttentionConfig` to keep the backend switches together.
-
-	Attributes
-	----------
-	enable_flash : bool
-		Whether the flash backend may run.
-	enable_math : bool
-		Whether the math backend may run.
-	enable_mem_efficient : bool
-		Whether the memory-efficient backend may run.
-	"""
-	enable_flash: bool
-	enable_math: bool
-	enable_mem_efficient: bool
-
-class KwargsOfAttention(TypedDict):
-	"""Collect shared attention keyword arguments.
-
-	You can use `KwargsOfAttention` to keep one attention-block configuration together.
-
-	Attributes
-	----------
-	dim_head : int
-		Size of the per-head feature ***dim***ension.
-	dim : int
-		Size of the model feature ***dim***ension.
-	dropout : float
-		Dropout probability inside the attention block.
-	flash : bool
-		Whether the attention block may use the flash path.
-	heads : int
-		Number of attention heads.
-	"""
-	dim_head: int
-	dim: int
-	dropout: float
-	flash: bool
-	heads: int
-	pope_embed: PoPE | None
-	rotary_embed: RotaryEmbedding | None
-	sage_attention: bool
-	scale: float
-
-class KwargsSTFT(TypedDict):
+class ParametersSTFT(TypedDict):
 	"""Collect shared STFT keyword arguments.
 
-	You can use `KwargsSTFT` to keep one STFT configuration together.
+	You can use `ParametersSTFT` to keep one STFT configuration together.
 
 	Attributes
 	----------
@@ -132,10 +132,10 @@ class KwargsSTFT(TypedDict):
 	normalized: bool
 	win_length: int
 
-class KwargsTransformer(TypedDict):
+class ParametersTransformer(TypedDict):
 	"""Collect shared transformer keyword arguments.
 
-	You can use `KwargsTransformer` to keep one transformer-block configuration together.
+	You can use `ParametersTransformer` to keep one transformer-block configuration together.
 
 	Attributes
 	----------
@@ -155,9 +155,13 @@ class KwargsTransformer(TypedDict):
 		Whether to normalize after the last layer.
 	"""
 	attn_dropout: float
-	dim: int
 	dim_head: int
+	dim: int
 	ff_dropout: float
+	ff_mult: float | None
 	flash_attn: bool
 	heads: int
+	linear_attn: bool
 	norm_output: bool
+	sage_attention: bool
+	scale: float | None

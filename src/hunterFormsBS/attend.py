@@ -46,7 +46,8 @@ References
 from __future__ import annotations
 
 from einops import rearrange
-from hunterFormsBS.theTypes import FlashAttentionConfig, KwargsOfAttention
+from hunterFormsBS.theTypes import FlashAttentionConfig, ParametersAttention
+from hunterMakesPy import raiseIfNone
 from more_itertools import loops
 from operator import neg
 from packaging import version
@@ -77,10 +78,10 @@ class Attend(nn.Module):
 
 	Attributes
 	----------
-	attn_dropout : nn.Dropout
+	nn_Dropout : nn.Dropout
 		Dropout module applied to attention weights after `softmax` in the explicit path [5].
-	dropout : float
-		Probability used for attention-weight dropout during training.
+	attn_dropout : float
+		Probability used for attention-weight attn_dropout during training.
 	cpu_config : FlashAttentionConfig
 		Backend flags passed to `torch.backends.cuda.sdp_kernel` [5] when execution remains on CPU or
 		when `cuda_config` is unavailable.
@@ -120,10 +121,10 @@ class Attend(nn.Module):
 		https://arxiv.org/abs/2205.14135
 	"""
 
-	def __init__(self, dropout: float, scale: float, *, flash: bool = False, sage_attention: bool = False) -> None:
-		"""Configure attention-score scaling, dropout, and scaled dot-product attention backend selection.
+	def __init__(self, attn_dropout: float, scale: float, *, flash: bool = False, sage_attention: bool = False) -> None:
+		"""Configure attention-score scaling, attn_dropout, and scaled dot-product attention backend selection.
 
-		You can use `__init__` to set the dropout probability for attention weights, optionally
+		You can use `__init__` to set the attn_dropout probability for attention weights, optionally
 		override the default inverse-square-root score scaling `q.shape[-1] ** -0.5` [1], and allow
 		`forward` to use PyTorch SDPA (scaled dot-product attention) backends [2]. `__init__`
 		stores one backend configuration for CPU execution and, when `flash=True` and a supported
@@ -132,7 +133,7 @@ class Attend(nn.Module):
 
 		Parameters
 		----------
-		dropout : float = 0.0
+		attn_dropout : float = 0.0
 			Probability applied to attention weights during training.
 		scale : float | None = q.shape[-1] ** -0.5
 			Attention-score multiplier override. Passing `None` keeps the default
@@ -161,8 +162,8 @@ class Attend(nn.Module):
 		"""
 		super().__init__()
 		self.scale: float = scale
-		self.dropout: float = dropout
-		self.attn_dropout: nn.Dropout = nn.Dropout(self.dropout)
+		self.attn_dropout: float = attn_dropout
+		self.nn_Dropout: nn.Dropout = nn.Dropout(self.attn_dropout)
 
 		self.flash: bool = flash
 		if self.flash and version.parse(torch.__version__) < version.parse('2.0.0'):
@@ -242,7 +243,7 @@ class Attend(nn.Module):
 			`torch.nn.functional.scaled_dot_product_attention` [1]. `cpu_config` enables all three
 			SDPA backend families. When `q.is_cuda` is `True` and `cuda_config` is available,
 			`flash_attn` switches to the stored CUDA-specific flags. During training, `flash_attn`
-			passes `self.dropout`, and during evaluation, `flash_attn` passes `0.0`.
+			passes `self.attn_dropout`, and during evaluation, `flash_attn` passes `0.0`.
 
 		References
 		----------
@@ -264,9 +265,9 @@ class Attend(nn.Module):
 		if is_cuda and exists(self.cuda_config):
 			config = self.cuda_config
 
-		# pytorch 2.0 flash attn: q, k, v, mask, dropout, softmax_scale  # noqa: ERA001
+		# pytorch 2.0 flash attn: q, k, v, mask, attn_dropout, softmax_scale  # noqa: ERA001
 		with torch.backends.cuda.sdp_kernel(**config._asdict()): # pyright: ignore[reportDeprecated]
-			out: Tensor = F.scaled_dot_product_attention(q, k, v, dropout_p=self.dropout if self.training else 0.0)
+			out: Tensor = F.scaled_dot_product_attention(q, k, v, dropout_p=self.attn_dropout if self.training else 0.0)
 
 		return out
 
@@ -278,7 +279,7 @@ class Attend(nn.Module):
 		`Tensor` `k` to build attention weights, then uses those attention weights to mix value
 		`Tensor` `v`. When `self.flash` is `True`, `forward` delegates to `flash_attn` [1].
 		Otherwise `forward` computes the standard scaled dot-product attention weights [2]
-		explicitly with `softmax`, applies `attn_dropout`, and mixes value `Tensor` `v` with those
+		explicitly with `softmax`, applies `nn_Dropout`, and mixes value `Tensor` `v` with those
 		attention weights.
 
 		Parameters
@@ -359,7 +360,7 @@ class Attend(nn.Module):
 		similarity: Tensor = einsum('b h i d, b h j d -> b h i j', q, k) * self.scale
 
 		attention_weights: Tensor = similarity.softmax(dim=-1)
-		attention_weights = self.attn_dropout(attention_weights)
+		attention_weights = self.nn_Dropout(attention_weights)
 
 		# aggregate values
 
@@ -408,7 +409,7 @@ class Attention(nn.Module):
 		Projection layer implemented with PyTorch `nn.Linear` [8] to produce one gate value for each
 		head.
 	to_out : nn.Sequential
-		Output projection and dropout module implemented with PyTorch layers [8].
+		Output projection and nn_Dropout module implemented with PyTorch layers [8].
 	to_qkv : nn.Linear
 		Projection layer implemented with PyTorch `nn.Linear` [8] to produce concatenated query, key,
 		and value features.
@@ -448,7 +449,7 @@ class Attention(nn.Module):
 		self,
 		dim: int,
 		dim_head: int = 64,
-		dropout: float = 0.0,
+		attn_dropout: float = 0.0,
 		heads: int = 8,
 		pope_embed: PoPE | None = None,
 		rotary_embed: RotaryEmbedding | None = None,
@@ -460,7 +461,7 @@ class Attention(nn.Module):
 		"""Set up an attention block for a chosen width and head layout.
 
 		You can use `__init__` to decide how much feature capacity the block has, how many heads
-		share that capacity, whether dropout is used, and which positional-encoding path the block
+		share that capacity, whether attn_dropout is used, and which positional-encoding path the block
 		should follow. `__init__` stores the resulting submodules so later calls to `forward` can
 		reuse the same attention block.
 
@@ -468,10 +469,10 @@ class Attention(nn.Module):
 		-------
 		submodule construction : implementation detail
 			`__init__` computes `dim_inner = heads * dim_head`, stores `rotary_embed` and
-			`pope_embed`, creates `Attend(flash=flash, dropout=dropout)` for the non-PoPE path [1],
+			`pope_embed`, creates `Attend(flash=flash, attn_dropout=attn_dropout)` for the non-PoPE path [1],
 			instantiates `RMSNorm(dim)`, and constructs `to_qkv = nn.Linear(dim, dim_inner * 3,
 			bias=False)`, `to_gates = nn.Linear(dim, heads)`, and `to_out =
-			nn.Sequential(nn.Linear(dim_inner, dim, bias=False), nn.Dropout(dropout))`. `__init__`
+			nn.Sequential(nn.Linear(dim_inner, dim, bias=False), nn.Dropout(attn_dropout))`. `__init__`
 			raises `ValueError` when both positional encoders are supplied.
 
 		Parameters
@@ -482,8 +483,8 @@ class Attention(nn.Module):
 			Number of attention heads.
 		dim_head : int = 64
 			Feature width of each head before concatenation.
-		dropout : float = 0.0
-			Probability used by `Attend` [1] and the output dropout layer.
+		attn_dropout : float = 0.0
+			Probability used by `Attend` [1] and the output attn_dropout layer.
 		rotary_embed : RotaryEmbedding | None = None
 			Optional rotary position encoder [2]. `rotary_embed` is mutually exclusive with
 			`pope_embed`.
@@ -511,23 +512,19 @@ class Attention(nn.Module):
 		"""
 		super().__init__()
 
-		# Initialize `self`, primary
 		self.heads: int = heads
 		self.norm: RMSNorm = RMSNorm(dim)
 		self.pope_embed: PoPE | None = pope_embed
 		self.rotary_embed: RotaryEmbedding | None = rotary_embed
-		self.scale: float = scale or dim_head**neg(0.5)
+		self.scale: float = scale or dim_head ** neg(0.5)
 
-		# Initialize `self`, secondary
-		self.attend: Attend = Attend(dropout=dropout, scale=self.scale, flash=flash, sage_attention=sage_attention)
+		self.attend: Attend = Attend(attn_dropout=attn_dropout, scale=self.scale, flash=flash, sage_attention=sage_attention)
 		self.to_gates: nn.Linear = nn.Linear(dim, self.heads)
 
-		# Compute internal values
 		dim_inner: int = self.heads * dim_head
 
-		# Initialize `self`, tertiary
 		self.to_qkv: nn.Linear = nn.Linear(in_features=dim, out_features=dim_inner * 3, bias=False)
-		self.to_out: nn.Sequential = nn.Sequential(nn.Linear(in_features=dim_inner, out_features=dim, bias=False), nn.Dropout(dropout))
+		self.to_out: nn.Sequential = nn.Sequential(nn.Linear(in_features=dim_inner, out_features=dim, bias=False), nn.Dropout(attn_dropout))
 
 	def forward(self, x: Tensor) -> Tensor:
 		"""Compute gated multi-head attention output from activations `x`.
@@ -634,7 +631,7 @@ class FeedForward(Module):
 	----------
 	net : nn.Sequential
 		Position-wise submodule sequence containing root-mean-square normalization, width expansion,
-		`nn.GELU`, dropout, width projection, and output dropout [6].
+		`nn.GELU`, ff_dropout, width projection, and output ff_dropout [6].
 
 	See Also
 	--------
@@ -661,30 +658,30 @@ class FeedForward(Module):
 	[6] PyTorch.
 		https://context7.com/pytorch/pytorch
 	"""
-	def __init__(self, dim: int, mult: float = 4.0, dropout: float = 0.0) -> None:
+	def __init__(self, dim: int, ff_mult: float | None = 4.0, ff_dropout: float = 0.0) -> None:
 		"""Set up a position-wise feedforward block for feature width `dim`.
 
 		You can use `__init__` to choose the input and output feature width `dim`, the internal width
-		expansion factor `mult`, and the dropout probability `dropout` for the shared feedforward
+		expansion factor `ff_mult`, and the ff_dropout probability `ff_dropout` for the shared feedforward
 		sublayer inside `Transformer` [1]. `__init__` stores the resulting normalization, linear,
-		activation, and dropout layers in `net` for reuse by later calls to `forward`.
+		activation, and ff_dropout layers in `net` for reuse by later calls to `forward`.
 
 		Parameters
 		----------
 		dim : int
 			Input feature width before expansion and output feature width after projection.
-		mult : float = 4.0
-			Multiplicative factor used to compute the hidden feature width `int(dim * mult)`.
-		dropout : float = 0.0
+		ff_mult : float = 4.0
+			Multiplicative factor used to compute the hidden feature width `int(dim * ff_mult)`.
+		ff_dropout : float = 0.0
 			Dropout probability applied after the hidden activation and after the output projection.
 
 		PyTorch
 		-------
 		submodule construction : implementation detail
-			`__init__` computes `dim_inner = int(dim * mult)` and stores `net` as a six-stage
+			`__init__` computes `dim_inner = int(dim * ff_mult)` and stores `net` as a six-stage
 			`nn.Sequential` with root-mean-square normalization, `nn.Linear(dim, dim_inner)`,
-			`nn.GELU`, `nn.Dropout(dropout)`, `nn.Linear(dim_inner, dim)`, and a second
-			`nn.Dropout(dropout)` [2].
+			`nn.GELU`, `nn.Dropout(ff_dropout)`, `nn.Linear(dim_inner, dim)`, and a second
+			`nn.Dropout(ff_dropout)` [2].
 
 		References
 		----------
@@ -694,9 +691,9 @@ class FeedForward(Module):
 			https://context7.com/pytorch/pytorch
 		"""
 		super().__init__()
-		dim_inner: int = int(dim * mult)
+		dim_inner: int = int(dim * raiseIfNone(ff_mult))
 		self.net: nn.Sequential = nn.Sequential(
-			RMSNorm(dim), nn.Linear(dim, dim_inner), nn.GELU(), nn.Dropout(dropout), nn.Linear(dim_inner, dim), nn.Dropout(dropout)
+			RMSNorm(dim), nn.Linear(dim, dim_inner), nn.GELU(), nn.Dropout(ff_dropout), nn.Linear(dim_inner, dim), nn.Dropout(ff_dropout)
 		)
 
 	def forward(self, x: Tensor) -> Tensor:
@@ -780,7 +777,7 @@ class Transformer(Module):
 		dim_head: int = 64,
 		dim: int,
 		ff_dropout: float = 0.0,
-		ff_mult: float = 4,
+		ff_mult: float | None = 4,
 		flash_attn: bool = True,
 		heads: int = 8,
 		linear_attn: bool = False,  # noqa: ARG002
@@ -788,7 +785,7 @@ class Transformer(Module):
 		pope_embed: PoPE | None = None,
 		rotary_embed: RotaryEmbedding | None = None,
 		sage_attention: bool = False,
-		scale: float = 8,
+		scale: float | None = None,
 	) -> None:
 		"""Set up a transformer stack for feature width `dim` and layer count `depth`.
 
@@ -835,7 +832,7 @@ class Transformer(Module):
 			one feedforward sublayer. When `linear_attn=True`, the attention sublayer is
 			`LinearAttention(**attentionKwargs)` [2]. Otherwise, `__init__` creates `Attention` [1]
 			and passes `rotary_embed` plus `pope_embed` to each `Attention`. The paired feedforward
-			sublayer is `FeedForward(dim=dim, mult=ff_mult, dropout=ff_dropout)` [3]. `norm` becomes
+			sublayer is `FeedForward(dim=dim, ff_mult=ff_mult, ff_dropout=ff_dropout)` [3]. `norm` becomes
 			`RMSNorm(dim)` when `norm_output` is `True` and `nn.Identity()` otherwise [4].
 
 		References
@@ -851,11 +848,21 @@ class Transformer(Module):
 		"""
 		super().__init__()
 
-		attentionKwargs = KwargsOfAttention(dim=dim, dim_head=dim_head, heads=heads, dropout=attn_dropout,
-				flash=flash_attn, scale=scale, pope_embed=pope_embed, rotary_embed=rotary_embed, sage_attention=sage_attention)
+		parametersAttention = ParametersAttention(
+			dim_head=dim_head,
+			dim=dim,
+			attn_dropout=attn_dropout,
+			flash=flash_attn,
+			heads=heads,
+			pope_embed=pope_embed,
+			rotary_embed=rotary_embed,
+			sage_attention=sage_attention,
+			scale=scale,
+		)
 
 		self.layers = ModuleList(
-			ModuleList([Attention(**attentionKwargs), FeedForward(dim=dim, mult=ff_mult, dropout=ff_dropout)])
+			ModuleList([Attention(**parametersAttention)
+					, FeedForward(dim=dim, ff_mult=ff_mult, ff_dropout=ff_dropout)])
 				for _deep in loops(depth)
 		)
 

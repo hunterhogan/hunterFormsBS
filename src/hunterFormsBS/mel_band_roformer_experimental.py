@@ -1,14 +1,11 @@
-# pyright: reportUnknownArgumentType=false
-# pyright: reportUnknownMemberType=false
-# pyright: reportUnknownVariableType=false
-# ruff: noqa: D100, ARG002, D101, D102
+# ruff: noqa: D100, D101, D102
 from __future__ import annotations
 
 from einops import pack, rearrange, reduce, repeat, unpack  # pyright: ignore[reportUnknownVariableType]
 from functools import partial
 from hunterFormsBS.attend_experimental import Transformer
 from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, mask_filter_bank_mel_band_default, MaskEstimator
-from hunterFormsBS.theTypes import ComputeLoss, KwargsSTFT, KwargsTransformer
+from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersSTFT, ParametersTransformer
 from hunterMakesPy import raiseIfNone
 from hyper_connections import get_init_and_expand_reduce_stream_functions  # NOTE There is a newer version.
 from more_itertools import loops
@@ -35,19 +32,20 @@ class MelBandRoformer(Module):
 		*,
 		attn_dropout: float = 0.0,
 		depth: int,
-		dim_freqs_in: int = 1025,
+		dim_freqs_in: int = 1025,  # noqa: ARG002
 		dim_head: int = 64,
 		ff_dropout: float = 0.0,
+		ff_mult: float | None = None,
 		final_norm: bool | None = None,
 		flash_attn: bool = True,
 		freq_transformer_depth: int = 2,
-		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,
+		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,  # noqa: ARG002
 		heads: int = 8,
 		linear_transformer_depth: int = 0,
 		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
-		mc_hyper_conn_sinkhorn_iters: int | None = None,
+		mc_hyper_conn_sinkhorn_iters: int | None = None,  # noqa: ARG002
 		mlp_expansion_factor: int = 4,
 		multi_stft_hop_size: int = 147,
 		multi_stft_normalized: bool = False,
@@ -56,13 +54,15 @@ class MelBandRoformer(Module):
 		multi_stft_window_fn: Callable[..., Tensor] = halfsineTensor,
 		norm_output: bool | None = None,
 		num_bands: int | None = None,
-		num_residual_fracs: int | None = None,
+		num_residual_fracs: int | None = None,  # noqa: ARG002
 		num_residual_streams: int = 1,
 		num_stems: int = 1,
 		sample_rate: float | None = None,
 		skip_connection: bool = False,
 		stereo: bool = False,
 		stft_hop_length: int = 512,
+		sage_attention: bool = False,
+		scale: float | None = None,
 		stft_n_fft: int = 2048,
 		stft_normalized: bool = False,
 		stft_win_length: int = 1024,
@@ -79,9 +79,10 @@ class MelBandRoformer(Module):
 
 		self.stereo: bool = stereo
 		self.audio_channels: int = 2 if self.stereo else 1
+		self.num_residual_streams: int = num_residual_streams
 		self.num_stems: int = num_stems
-		self.use_torch_checkpoint: bool = use_torch_checkpoint
 		self.skip_connection: bool = skip_connection
+		self.use_torch_checkpoint: bool = use_torch_checkpoint
 
 		if mask_filter_bank is None:
 			num_bands = num_bands or 60
@@ -111,6 +112,20 @@ class MelBandRoformer(Module):
 
 		# rotator and transformer
 
+		transformer_kwargs: ParametersTransformer = ParametersTransformer(
+			attn_dropout=attn_dropout,
+			dim_head=dim_head,
+			dim=dim,
+			ff_dropout=ff_dropout,
+			ff_mult=ff_mult,
+			flash_attn=flash_attn,
+			heads=heads,
+			linear_attn=(0 < linear_transformer_depth),
+			norm_output=raiseIfNone(norm_output, f'I received {norm_output = }, but I need a type `bool` value or a "truthy" value.'),
+			sage_attention=sage_attention,
+			scale=scale,
+		)
+
 		if use_pope:
 			time_pope_embed: PoPE | None = PoPE(dim=dim_head, heads=heads)
 			freq_pope_embed: PoPE | None = PoPE(dim=dim_head, heads=heads)
@@ -122,35 +137,21 @@ class MelBandRoformer(Module):
 			time_pope_embed = None
 			freq_pope_embed = None
 
-		transformer_kwargs: KwargsTransformer = KwargsTransformer(attn_dropout=attn_dropout, dim_head=dim_head,
-			dim=dim, ff_dropout=ff_dropout, flash_attn=flash_attn, heads=heads,
-			norm_output=raiseIfNone(norm_output, f'I received {norm_output = }, but I need a type `bool` value or a "truthy" value.'),
-		)
-
-		self.num_residual_streams = num_residual_streams
-		_init_hyper_conn, self.expand_stream, self.reduce_stream = get_init_and_expand_reduce_stream_functions(self.num_residual_streams, disable=self.num_residual_streams == 1)
-
-		self.layers: ModuleList = ModuleList([])
-		for layer_index in range(depth):
-			if use_value_residual_learning:
-				is_first = layer_index == 0
-			else:
-				is_first = True
-
-			self.layers.append(nn.ModuleList([
+		self.layers: ModuleList = ModuleList([
+			nn.ModuleList([
 				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed,
-					add_value_residual=not is_first,
-					num_residual_streams=self.num_residual_streams,
-					**transformer_kwargs)
+					use_value_residual_learning=use_value_residual_learning and layer_index > 0,
+					num_residual_streams=self.num_residual_streams, **transformer_kwargs)
 				, Transformer(depth=freq_transformer_depth, rotary_embed=freq_rotary_embed, pope_embed=freq_pope_embed,
-					add_value_residual=not is_first,
-					num_residual_streams=self.num_residual_streams,
-					**transformer_kwargs)
-			]))
+					use_value_residual_learning=use_value_residual_learning and layer_index > 0,
+					num_residual_streams=self.num_residual_streams, **transformer_kwargs)
+			])
+			for layer_index in range(depth)
+		])
 
 		# stft
 
-		self.stft_kwargs: KwargsSTFT = KwargsSTFT(n_fft=stft_n_fft, hop_length=stft_hop_length, win_length=stft_win_length, normalized=stft_normalized)
+		self.stft_kwargs: ParametersSTFT = ParametersSTFT(n_fft=stft_n_fft, hop_length=stft_hop_length, win_length=stft_win_length, normalized=stft_normalized)
 
 		self.stft_window_fn: Callable[..., Tensor] = partial(stft_window_fn, stft_win_length)
 
@@ -181,9 +182,11 @@ class MelBandRoformer(Module):
 		num_bands_per_freq: Tensor = reduce(mask_filter_bank, 'b f -> f', 'sum')
 		self.register_buffer('num_bands_per_freq', num_bands_per_freq, persistent=False)
 
-		self.multi_stft: ComputeLoss = ComputeLoss(hop_length=multi_stft_hop_size, loss_weight=multi_stft_resolution_loss_weight,
+		self.multi_stft: ParametersComputeLoss = ParametersComputeLoss(hop_length=multi_stft_hop_size, loss_weight=multi_stft_resolution_loss_weight,
 			n_fft=stft_n_fft, normalized=multi_stft_normalized, window_fn=multi_stft_window_fn, window_sizes=multi_stft_resolutions_window_sizes,
 		)
+
+		_init_hyper_conn, self.expand_stream, self.reduce_stream = get_init_and_expand_reduce_stream_functions(self.num_residual_streams, disable=self.num_residual_streams == 1)
 
 	def forward(self, raw_audio: Tensor, target: Tensor | None = None, active_stem_ids: list[int] | None = None, *, return_loss_breakdown: bool = False) -> Tensor | tuple[Tensor, tuple[Tensor, Tensor]]:
 		device: torch.device = raw_audio.device
@@ -242,8 +245,8 @@ class MelBandRoformer(Module):
 			x = self.band_split(x)
 
 		# axial / hierarchical attention
-		time_v_residual = None
-		freq_v_residual = None
+		time_v_residual: Tensor | None = None
+		freq_v_residual: Tensor | None = None
 
 		if self.num_residual_streams != 1:
 			x = self.expand_stream(x)
@@ -263,7 +266,8 @@ class MelBandRoformer(Module):
 			x, ps = pack([x], '* t d')
 
 			if self.use_torch_checkpoint:
-				x, next_time_v_residual = checkpoint(time_transformer, x, time_v_residual, use_reentrant=False)  # pyright: ignore[reportGeneralTypeIssues]
+				twoTupleTensors: tuple[Tensor, Tensor] = checkpoint(time_transformer, x, time_v_residual, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType, reportGeneralTypeIssues]
+				x, next_time_v_residual = twoTupleTensors
 			else:
 				x, next_time_v_residual = time_transformer(x, value_residual=time_v_residual)
 			time_v_residual = default(time_v_residual, next_time_v_residual)
@@ -273,7 +277,8 @@ class MelBandRoformer(Module):
 			x, ps = pack([x], '* f d')
 
 			if self.use_torch_checkpoint:
-				x, next_freq_v_residual = checkpoint(freq_transformer, x, freq_v_residual, use_reentrant=False)  # pyright: ignore[reportGeneralTypeIssues]
+				twoTupleTensors: tuple[Tensor, Tensor] = checkpoint(freq_transformer, x, freq_v_residual, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType, reportGeneralTypeIssues]
+				x, next_freq_v_residual = twoTupleTensors
 			else:
 				x, next_freq_v_residual = freq_transformer(x, value_residual=freq_v_residual)
 			freq_v_residual = default(freq_v_residual, next_freq_v_residual)

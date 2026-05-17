@@ -22,7 +22,7 @@ from einops import pack, rearrange, reduce, repeat, unpack  # pyright: ignore[re
 from functools import partial
 from hunterFormsBS.attend import Transformer
 from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, MaskEstimator
-from hunterFormsBS.theTypes import ComputeLoss, KwargsSTFT, KwargsTransformer
+from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersSTFT, ParametersTransformer
 from hunterMakesPy import raiseIfNone
 from more_itertools import loops
 from operator import mul
@@ -84,7 +84,7 @@ class BSRoformer(Module):
 		mask from band token `Tensor` `x`.
 	match_input_audio_length : bool
 		Whether inverse STFT reconstruction is forced back to the input waveform length.
-	multi_stft : ComputeLoss
+	multi_stft : ParametersComputeLoss
 		Internal multi-resolution STFT loss configuration consumed only when `forward` receives
 		`target` [11].
 	num_bands_per_freq : Tensor
@@ -101,7 +101,7 @@ class BSRoformer(Module):
 	stereo : bool
 		Whether `forward` expects stereo waveform `Tensor` `raw_audio` instead of mono waveform
 		`Tensor` `raw_audio`.
-	stft_kwargs : KwargsSTFT
+	stft_kwargs : ParametersSTFT
 		Keyword record shared by the forward and inverse STFT calls [12].
 	stft_window_fn : Callable[..., Tensor]
 		Partially applied window constructor used by the forward and inverse STFT calls.
@@ -166,9 +166,9 @@ class BSRoformer(Module):
 
 	[10] hunterFormsBS.mel_band_roformer.MelBandRoformer
 
-	[11] hunterFormsBS.theTypes.ComputeLoss
+	[11] hunterFormsBS.theTypes.ParametersComputeLoss
 
-	[12] hunterFormsBS.theTypes.KwargsSTFT
+	[12] hunterFormsBS.theTypes.ParametersSTFT
 
 	[13] torch.utils.checkpoint.checkpoint
 		https://pytorch.org/docs/stable/checkpoint.html
@@ -182,12 +182,13 @@ class BSRoformer(Module):
 		dim_freqs_in: int = 1025,  # noqa: ARG002
 		dim_head: int = 64,
 		ff_dropout: float = 0.0,
+		ff_mult: float | None = None,
 		final_norm: bool | None = None,
 		flash_attn: bool = True,
 		freq_transformer_depth: int = 2,
 		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,
 		heads: int = 8,
-		linear_transformer_depth: int = 0,  # noqa: ARG002
+		linear_transformer_depth: int = 0,
 		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
@@ -204,6 +205,8 @@ class BSRoformer(Module):
 		skip_connection: bool = False,
 		stereo: bool = False,
 		stft_hop_length: int = 512,
+		sage_attention: bool = False,
+		scale: float | None = None,
 		stft_n_fft: int = 2048,
 		stft_normalized: bool = False,
 		stft_win_length: int = 1024,
@@ -377,8 +380,8 @@ class BSRoformer(Module):
 		self.stereo: bool = stereo
 		self.audio_channels: int = 2 if self.stereo else 1
 		self.num_stems: int = num_stems
-		self.use_torch_checkpoint: bool = use_torch_checkpoint
 		self.skip_connection: bool = skip_connection
+		self.use_torch_checkpoint: bool = use_torch_checkpoint
 
 		if mask_filter_bank is None:
 			num_bands = num_bands or len(freqs_per_bands)
@@ -397,6 +400,20 @@ class BSRoformer(Module):
 
 		# rotator and transformer
 
+		transformer_kwargs: ParametersTransformer = ParametersTransformer(
+			attn_dropout=attn_dropout,
+			dim_head=dim_head,
+			dim=dim,
+			ff_dropout=ff_dropout,
+			ff_mult=ff_mult,
+			flash_attn=flash_attn,
+			heads=heads,
+			linear_attn=(0 < linear_transformer_depth),
+			norm_output=raiseIfNone(norm_output, f'I received {norm_output = }, but I need a type `bool` value or a "truthy" value.'),
+			sage_attention=sage_attention,
+			scale=scale,
+		)
+
 		if use_pope:
 			time_pope_embed: PoPE | None = PoPE(dim=dim_head, heads=heads)
 			freq_pope_embed: PoPE | None = PoPE(dim=dim_head, heads=heads)
@@ -408,21 +425,17 @@ class BSRoformer(Module):
 			time_pope_embed = None
 			freq_pope_embed = None
 
-		transformer_kwargs: KwargsTransformer = KwargsTransformer(attn_dropout=attn_dropout, dim_head=dim_head,
-			dim=dim, ff_dropout=ff_dropout, flash_attn=flash_attn, heads=heads,
-			norm_output=raiseIfNone(norm_output, f'I received {norm_output = }, but I need a type `bool` value or a "truthy" value.'),
-		)
-
-		self.layers: ModuleList = ModuleList([])
-		for _deep in loops(depth):
-			self.layers.append(nn.ModuleList([
+		self.layers: ModuleList = ModuleList([
+			nn.ModuleList([
 				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed, **transformer_kwargs)
 				, Transformer(depth=freq_transformer_depth, rotary_embed=freq_rotary_embed, pope_embed=freq_pope_embed, **transformer_kwargs)
-			]))
+			])
+			for _deep in loops(depth)
+		])
 
 		# stft
 
-		self.stft_kwargs: KwargsSTFT = KwargsSTFT(n_fft=stft_n_fft, hop_length=stft_hop_length, win_length=stft_win_length, normalized=stft_normalized)
+		self.stft_kwargs: ParametersSTFT = ParametersSTFT(n_fft=stft_n_fft, hop_length=stft_hop_length, win_length=stft_win_length, normalized=stft_normalized)
 
 		self.stft_window_fn: Callable[..., Tensor] = partial(stft_window_fn, stft_win_length)
 
@@ -453,7 +466,7 @@ class BSRoformer(Module):
 		num_bands_per_freq: Tensor = reduce(mask_filter_bank, 'b f -> f', 'sum')
 		self.register_buffer('num_bands_per_freq', num_bands_per_freq, persistent=False)
 
-		self.multi_stft: ComputeLoss = ComputeLoss(hop_length=multi_stft_hop_size, loss_weight=multi_stft_resolution_loss_weight,
+		self.multi_stft: ParametersComputeLoss = ParametersComputeLoss(hop_length=multi_stft_hop_size, loss_weight=multi_stft_resolution_loss_weight,
 			n_fft=stft_n_fft, normalized=multi_stft_normalized, window_fn=multi_stft_window_fn, window_sizes=multi_stft_resolutions_window_sizes,
 		)
 

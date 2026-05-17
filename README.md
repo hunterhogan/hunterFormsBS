@@ -106,8 +106,8 @@ module. `librosa` is only needed if you call `librosa_filters_mel`.
 
 - `hunterFormsBS.__init__`
   - Main symbols: `BandSplitRotator`, `BandSplit`, `MaskEstimator`, `Transformer`,
-    `lossComputation`, `DEFAULT_FREQS_PER_BANDS`, `ComputeLoss`, `FlashAttentionConfig`,
-    `KwargsOfAttention`, `KwargsSTFT`, `KwargsTransformer`
+    `lossComputation`, `DEFAULT_FREQS_PER_BANDS`, `ParametersComputeLoss`, `FlashAttentionConfig`,
+    `ParametersAttention`, `ParametersSTFT`, `ParametersTransformer`
   - Purpose: public top-level namespace for the stable typed API.
 - `hunterFormsBS.bandSplitRotator`
   - Main symbols: `BandSplitRotator`
@@ -132,8 +132,8 @@ module. `librosa` is only needed if you call `librosa_filters_mel`.
   - Main symbols: `Attend`, `Attention`, `FeedForward`, `LinearAttention`, `Transformer`
   - Purpose: stable attention, feedforward, linear-attention, and transformer building blocks.
 - `hunterFormsBS.theTypes`
-  - Main symbols: `ComputeLoss`, `FlashAttentionConfig`, `KwargsOfAttention`, `KwargsSTFT`,
-    `KwargsTransformer`
+  - Main symbols: `ParametersComputeLoss`, `FlashAttentionConfig`, `ParametersAttention`, `ParametersSTFT`,
+    `ParametersTransformer`
   - Purpose: typed configuration records used across the package.
 
 ## Experimental module map
