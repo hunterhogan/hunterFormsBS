@@ -1,0 +1,3 @@
+- In `Mathematics` docstring sections, keep Python identifiers only in the opening or closing bridge lines.
+- Keep the core of each math block purely mathematical: symbols, equations, and notation only.
+- When available, align notation with the paper formulas, but keep implementation-facing guidance outside the core equations.

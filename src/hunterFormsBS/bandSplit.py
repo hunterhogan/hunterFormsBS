@@ -1,3 +1,16 @@
+# https://huggingface.co/pcunwa/BS-Roformer-HyperACE/commit/76d35e479166ceb7dc07a457a37760de4f7091c1
+# ty:ignore[call-non-callable]
+# pyright: reportUnusedVariable=false
+# pyright: reportArgumentType=false
+# pyright: reportGeneralTypeIssues=false
+# pyright: reportMissingTypeArgument=false
+# pyright: reportCallIssue=false
+# pyright: reportMissingParameterType=false
+# pyright: reportUnknownArgumentType=false
+# pyright: reportUnknownMemberType=false
+# pyright: reportUnknownParameterType=false
+# pyright: reportUnknownVariableType=false
+# ruff: noqa: D101, D102, D103, ANN001, ANN201, ANN204, RET504, B007, E741, EM102, FBT002, RUF007, RUF059, S101, TRY003
 """Use band-splitting, static mask-filter-bank, and training-loss utilities for source separation.
 
 You can use this module to build the frequency-domain front end and the per-stem output heads shared
@@ -54,7 +67,7 @@ import torch
 import torch.nn.functional as F
 
 if TYPE_CHECKING:
-	from collections.abc import Sequence
+	from collections.abc import Callable, Sequence
 
 DEFAULT_FREQS_PER_BANDS: tuple[int, ...] = (2,) * 24 + (4,) * 12 + (12,) * 8 + (24,) * 8 + (48,) * 8 + (128, 129)
 mask_filter_bank_mel_band_default: Tensor = tensor(dtype=torch.bool, data=[[1]*7+[0]*1018,[0]*4+[1]*6+[0]*1015,[0]*7+[1]*6+[0]*1012,[0]*10+[1]*6+[0]*1009,[0]*13+[1]*6+[0]*1006,[0]*16+[1]*6+[0]*1003,[0]*19+[1]*6+[0]*1000,[0]*22+[1]*6+[0]*997,[0]*25+[1]*6+[0]*994,[0]*28+[1]*6+[0]*991,[0]*31+[1]*6+[0]*988,[0]*34+[1]*6+[0]*985,[0]*37+[1]*6+[0]*982,[0]*40+[1]*6+[0]*979,[0]*43+[1]*6+[0]*976,[0]*46+[1]*7+[0]*972,[0]*49+[1]*7+[0]*969,[0]*53+[1]*7+[0]*965,[0]*56+[1]*9+[0]*960,[0]*60+[1]*9+[0]*956,[0]*65+[1]*9+[0]*951,[0]*69+[1]*10+[0]*946,[0]*74+[1]*10+[0]*941,[0]*79+[1]*11+[0]*935,[0]*84+[1]*13+[0]*928,[0]*90+[1]*13+[0]*922,[0]*97+[1]*13+[0]*915,[0]*103+[1]*15+[0]*907,[0]*110+[1]*16+[0]*899,[0]*118+[1]*17+[0]*890,[0]*126+[1]*19+[0]*880,[0]*135+[1]*20+[0]*870,[0]*145+[1]*20+[0]*860,[0]*155+[1]*22+[0]*848,[0]*165+[1]*24+[0]*836,[0]*177+[1]*26+[0]*822,[0]*189+[1]*28+[0]*808,[0]*203+[1]*29+[0]*793,[0]*217+[1]*31+[0]*777,[0]*232+[1]*33+[0]*760,[0]*248+[1]*36+[0]*741,[0]*265+[1]*39+[0]*721,[0]*284+[1]*41+[0]*700,[0]*304+[1]*44+[0]*677,[0]*325+[1]*47+[0]*653,[0]*348+[1]*50+[0]*627,[0]*372+[1]*54+[0]*599,[0]*398+[1]*57+[0]*570,[0]*426+[1]*61+[0]*538,[0]*455+[1]*66+[0]*504,[0]*487+[1]*71+[0]*467,[0]*521+[1]*76+[0]*428,[0]*558+[1]*80+[0]*387,[0]*597+[1]*86+[0]*342,[0]*638+[1]*93+[0]*294,[0]*683+[1]*99+[0]*243,[0]*731+[1]*105+[0]*189,[0]*782+[1]*113+[0]*130,[0]*836+[1]*122+[0]*67,[0]*895+[1]*130])
@@ -207,14 +220,19 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 
 	Mathematics
 	-----------
-	multi-resolution loss : equation ```
-		Let y ≜ `target_sel`, ŷ ≜ `recon_audio`, W ≜ `multi_stft['window_sizes']`,
-			α ≜ `multi_stft['loss_weight']`
+	multi-resolution loss : equation
+	```
+		Let y ≜ `target_sel`,  ŷ ≜ `recon_audio`,
+			W ≜ `multi_stft['window_sizes']`,  α ≜ `multi_stft['loss_weight']`,
+			Ψ ≜ complex-valued STFT operator,
+			Ψ_w ≜ Ψ with length w windowing function
 
-		L_time = ‖ŷ − y‖₁ L_stft = ∑_{w ∈ W} ‖STFT_w(ŷ) − STFT_w(y)‖₁ L_total = L_time + α · L_stft
+		ℓₜ = ‖ŷ − y‖₁
+		ℓₛ = ∑_{w ∈ W} ‖Ψ_w(ŷ) − Ψ_w(y)‖₁
+		ℒ = ℓₜ + α · ℓₛ
 
-		where  L_time ≜ `loss`,  L_stft ≜ `multi_stft_resolution_loss`,
-			STFT_w(·) ≜ `torch.stft` for window size w,  L_total ≜ `total_loss`
+		where	ℓₜ ≜ `loss`,  ℓₛ ≜ `multi_stft_resolution_loss`,
+				ℒ ≜ `total_loss`
 	```
 
 	PyTorch
@@ -293,10 +311,10 @@ class MaskEstimator(Module):
 	representation for a single separator head. `MaskEstimator` applies one learned projection head to
 	each band on the penultimate axis of the input `Tensor`, then concatenates the band-local outputs
 	along the last axis. The surrounding separator `hunterFormsBS.bandSplitRotator.BandSplitRotator`
-	[3] usually reshapes the concatenated output into real and imaginary mask values and, when the
-	band layout overlaps in frequency, averages repeated frequency-bin estimates outside this class.
-	`MaskEstimator` corresponds to the multi-band mask-estimation family from BS-RoFormer [1] and the
-	Embedding Projection family from Mel-RoFormer [2]. Each band head uses
+	[1] later reshapes the concatenated output into real and imaginary mask values and, for
+	overlapped band layouts, performs the overlap averaging step outside `MaskEstimator` [1][3].
+	`MaskEstimator` corresponds to the multi-band mask-estimation family from BS-RoFormer [2] and the
+	embedding-projection family from Mel-RoFormer [3]. Each band head uses
 	`hunterFormsBS.bandSplit.MLP` [4] as the affine block before the final gate.
 
 	Attributes
@@ -314,26 +332,25 @@ class MaskEstimator(Module):
 	hunterFormsBS.bandSplitRotator.BandSplitRotator
 		Use `MaskEstimator` as one separator head inside the full model.
 
-	Architecture relation
-	---------------------
-	paper head boundary : behavior
-		The papers describe each band head with `RMSNorm`, affine transforms, `tanh`, and `GLU`
-		[1][2][5][6]. `MaskEstimator` implements the band-local affine and gating portion, while any
-		upstream normalization happens before `MaskEstimator` is called. When `depth = 1`,
-		`mlp_expansion_factor = 4`, and `activation` is the hyperbolic tangent activation,
-		`MaskEstimator` matches the paper-default hidden-width pattern.
-	overlap averaging outside this class : behavior
-		`MaskEstimator` does not merge overlapping frequency bins by itself. In the Mel-RoFormer
-		formulation [2], the later full-model step averages overlapping frequency-bin estimates after
-		the band-local outputs are reshaped to the paper-level mask layout.
+	Implementation boundary
+	-----------------------
+	band-head operators : behavior
+		`MaskEstimator` stores the band-local affine stack from `hunterFormsBS.bandSplit.MLP` [4] and
+		the final gated output stage [6]. Any upstream normalization such as `RMSNorm` [5] must happen
+		before `MaskEstimator` receives band token `Tensor` `x`.
+	package default head template : behavior
+		When `depth = 1`, `mlp_expansion_factor = 4`, and `activation` is the hyperbolic tangent
+		activation, `MaskEstimator` matches the default hidden-width and activation pattern used by the
+		published model family [2][3][6].
 
 	References
 	----------
-	[1] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation
+	[1] hunterFormsBS.bandSplitRotator.BandSplitRotator
+
+	[2] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation
 		with Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
-	[2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
+	[3] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
 		Transcription https://arxiv.org/abs/2409.04702
-	[3] hunterFormsBS.bandSplitRotator.BandSplitRotator
 
 	[4] hunterFormsBS.bandSplit.MLP
 
@@ -350,7 +367,36 @@ class MaskEstimator(Module):
 		depth: int,
 		mlp_expansion_factor: int = 4,
 		activation: type[nn.Module] = nn.Tanh,
-	) -> None:
+		segm_out_bins: int | None = None,
+		segm_out_channels=4,
+		segm_base_channels=64,
+		segm_base_depth=2,
+		segm_num_hyperedges=32,
+		segm_num_heads=8,
+		segm_backbone_channels: tuple[int, int, int, int, int] | None = None,
+		segm_hyperace_k=2,
+		segm_hyperace_l=1,
+		segm_hyperace_c_h=0.5,
+		segm_hyperace_c_l=0.25,
+		segm_hyperace_c3ah_expansion=1.0,
+		segm_hyperace_low_order_depth=1,
+		segm_hyperace_low_order_kernel=3,
+		segm_hyperace_low_order_expansion=1.0,
+		segm_hyperace_out_channels: int | None = None,
+		segm_decoder_channels: list[int] | tuple[int, int, int, int] | None = None,
+		segm_decoder_block_depth=1,
+		segm_decoder_block_kernel=3,
+		segm_decoder_block_expansion=0.5,
+		segm_upsample_scales: tuple[int, int, int, int] = (2, 2, 2, 2),
+		segm_upsample_tfc_tdf_depth=2,
+		segm_upsample_tfc_tdf_bn=4,
+		segm_activation=nn.SiLU,
+		segm_norm_eps=1e-8,
+		segm_norm_affine=True,
+		segm_conv_bias=False,
+		segm_linear_bias=False,
+		use_hyperACE=False,
+	):
 		"""Configure one mask-projection head per band.
 
 		You can use `__init__` to specify how many band heads `MaskEstimator` builds, how wide each
@@ -381,10 +427,46 @@ class MaskEstimator(Module):
 		self.dim_inputs: list[int] = list(dim_inputs)
 		self.to_freqs: ModuleList = ModuleList([])
 		dim_hidden: int = dim * mlp_expansion_factor
+		self.use_hyperACE: bool = use_hyperACE
 
 		for dim_in in self.dim_inputs:
 			mlp: nn.Sequential = nn.Sequential(MLP(dim, dim_in * 2, dim_hidden=dim_hidden, depth=depth, activation=activation), nn.GLU(dim=-1))
 			self.to_freqs.append(mlp)
+
+		if self.use_hyperACE:
+			segm_out_bins = sum(dim_inputs) // segm_out_channels if segm_out_bins is None else segm_out_bins
+			self.segm = SegmModel(
+				in_bands=len(dim_inputs),
+				in_dim=dim,
+				out_bins=segm_out_bins,
+				out_channels=segm_out_channels,
+				base_channels=segm_base_channels,
+				base_depth=segm_base_depth,
+				num_hyperedges=segm_num_hyperedges,
+				num_heads=segm_num_heads,
+				backbone_channels=segm_backbone_channels,
+				hyperace_k=segm_hyperace_k,
+				hyperace_l=segm_hyperace_l,
+				hyperace_c_h=segm_hyperace_c_h,
+				hyperace_c_l=segm_hyperace_c_l,
+				hyperace_c3ah_expansion=segm_hyperace_c3ah_expansion,
+				hyperace_low_order_depth=segm_hyperace_low_order_depth,
+				hyperace_low_order_kernel=segm_hyperace_low_order_kernel,
+				hyperace_low_order_expansion=segm_hyperace_low_order_expansion,
+				hyperace_out_channels=segm_hyperace_out_channels,
+				decoder_channels=segm_decoder_channels,
+				decoder_block_depth=segm_decoder_block_depth,
+				decoder_block_kernel=segm_decoder_block_kernel,
+				decoder_block_expansion=segm_decoder_block_expansion,
+				upsample_scales=segm_upsample_scales,
+				upsample_tfc_tdf_depth=segm_upsample_tfc_tdf_depth,
+				upsample_tfc_tdf_bn=segm_upsample_tfc_tdf_bn,
+				activation=segm_activation,
+				norm_eps=segm_norm_eps,
+				norm_affine=segm_norm_affine,
+				conv_bias=segm_conv_bias,
+				linear_bias=segm_linear_bias,
+			)
 
 	def forward(self, x: Tensor) -> Tensor:
 		"""Estimate one concatenated mask from band features `x`.
@@ -393,7 +475,8 @@ class MaskEstimator(Module):
 		`forward` sends each band token to the matching projection head in `self.to_freqs`, then
 		concatenates the band-local outputs along the last axis. The return value keeps band order but
 		removes the explicit band axis, so callers can reinterpret contiguous output segments as one
-		complex mask layout for later reshaping and scattering.
+		complex mask layout for later reshaping. `forward` does not average overlapping frequency bins;
+		later package code performs any overlap-aware reconstruction step after reshaping.
 
 		Parameters
 		----------
@@ -407,8 +490,8 @@ class MaskEstimator(Module):
 			Concatenated band-local output tensor. If the leading shape of `x` is `leadingShape`, the
 			return value has shape `(*leadingShape, sum(self.dim_inputs))`.
 
-		Shape Transformation
-		--------------------
+		PyTorch Tensor Shapes
+		---------------------
 		input band axis : relation
 			`forward` interprets `x[..., k, :]` as the feature tensor for band index `k`.
 		per-band output width : relation
@@ -420,38 +503,45 @@ class MaskEstimator(Module):
 
 		Mathematics
 		-----------
-		band-local projection family : equation
+		band-head family : equation
 		```
-			Let K ≜ len(`self.dim_inputs`),  zₖ ≜ `self.dim_inputs[k]`
-				x = [x₀, …, xₖ]  for  k ∈ {0, …, K − 1}
+			Let X ≜ `x`,  K ≜ len(`self.dim_inputs`),
+				zₖ ≜ `self.dim_inputs[k]`,  xₖ ≜ X[..., k, :]
 
-			mₖ = Φₖ(xₖ) ∈ ℝ^{…, zₖ}
-			m = [m₀ ‖ ⋯ ‖ mₖ]  for  k ∈ {0, …, K − 1}
-		```
-		paper-default band head : equation
-		```
-			Let  uₖ denote the band feature presented to the paper head
+			Φₖ : ℝ^{…, d} → ℝ^{…, zₖ}    ∀ k ∈ {0, …, K − 1}
+			yₖ = Φₖ(xₖ)                  ∀ k ∈ {0, …, K − 1}
+			Z = ∑ₖ zₖ
+			y = y₀ ‖ y₁ ‖ ⋯ ‖ y_{K−1} ∈ ℝ^{…, Z}
 
-			uₖ = RMSNorm(xₖ)
-			Φₖ(xₖ) = GLU(Wₖ,2 tanh(Wₖ,1 uₖ + bₖ,1) + bₖ,2)
-			GLU([aₖ ‖ bₖ]) = aₖ ⊙ σ(bₖ)
+			where  y ≜ `concatenated_mask`
+		```
+		default head specialization : equation
+		```
+			Let  L ≜ `depth`,  γ ≜ `mlp_expansion_factor`,  φ ≜ `activation`
+
+			L = 1
+			γ = 4
+			φ = tanh
+
+			Wₖ,1 : ℝ^{d} → ℝ^{4d}
+			Wₖ,2 : ℝ^{4d} → ℝ^{2zₖ}
+			hₖ = φ(Wₖ,1 xₖ + bₖ,1)
+			[aₖ ‖ gₖ] = Wₖ,2 hₖ + bₖ,2
+			yₖ = aₖ ⊙ σ(gₖ)
 		```
 
-		Paper alignment
-		---------------
-		BS-RoFormer mask assembly : behavior
-			In BS-RoFormer [1], the concatenated band outputs form the full cIRM by frequency-axis
-			concatenation of the band-local masks.
-		Mel-RoFormer mask assembly : behavior
-			In Mel-RoFormer [2], the concatenated band outputs correspond to the list `[Φ̂⁰, Φ̂¹, …,
-			Φ̂ᴷ⁻¹]` from equation (1), and the later full-model step computes `M̂[c, f, t] = (1 / S_f)
-			∑_k Φ̂ᵏ[c, f, t]` from equation (2) for overlapping bins.
+		Separator integration
+		---------------------
+		non-overlapping mask assembly : behavior
+			In non-overlapping band layouts, the concatenated output can be reinterpreted as one full
+			complex mask by frequency-axis concatenation [1].
+		overlap handling outside `MaskEstimator` : behavior
+			In overlapped mel-band layouts, `hunterFormsBS.bandSplitRotator.BandSplitRotator` [3]
+			performs the later overlap averaging step after reshaping the concatenated output back to
+			band-local mask slices [2][3].
 		normalization boundary : behavior
-			`forward` itself does not apply per-band `RMSNorm`. Any upstream normalization must happen
-			before `forward` is called [3][4].
-		paper operators : behavior
-			The paper-default head uses `RMSNorm` [4] before the affine block and `GLU` [5] as the
-			final gate.
+			`forward` does not apply per-band `RMSNorm` [4]. `forward` only invokes the stored
+			band-local affine block and final gate [5].
 
 		References
 		----------
@@ -466,6 +556,11 @@ class MaskEstimator(Module):
 		[5] Dauphin, Y. N., Fan, A., Auli, M., & Grangier, D. (2017). Language Modeling with
 			Gated Convolutional Networks. https://proceedings.mlr.press/v70/dauphin17a.html
 		"""
+		if self.use_hyperACE:
+			y: Tensor = rearrange(x, 'b t f c -> b c t f')
+			y = self.segm(y)
+			y = rearrange(y, 'b c t f -> b t (f c)')
+
 		tensor_unbound: tuple[Tensor, ...] = x.unbind(dim=-2)
 
 		outs: list[Tensor] = []
@@ -474,7 +569,12 @@ class MaskEstimator(Module):
 			freq_out: Tensor = mlp(band_features)
 			outs.append(freq_out)
 
-		return torch.cat(outs, dim=-1)
+		out: Tensor = torch.cat(outs, dim=-1)
+
+		if self.use_hyperACE:
+			out = out + y # pyright: ignore[reportPossiblyUnboundVariable]
+
+		return out
 
 def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1, activation: type[nn.Module] = nn.Tanh) -> nn.Sequential:
 	"""Build one feedforward projection from `dim_in` to `dim_out`.
@@ -509,22 +609,28 @@ def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1
 	-----------
 	linear stack : equation
 	```
-		Let d₀ ≜ `dim_in`,  d_out ≜ `dim_out`,  d₁ = ⋯ = d_L ≜ `dim_hidden`,
-			L ≜ `depth`
+		Let x denote the input vector,  L ≜ `depth`,
+			d₀ ≜ `dim_in`,  d_out ≜ `dim_out`,  d_h denote the effective hidden width
 
+		d₁ = ⋯ = d_L = d_h
 		h₀ = x
-		hᵢ₊₁ = φ(Wᵢ hᵢ + bᵢ)    for  i ∈ {0, …, L − 1}
-		y = W_last h_L + b_last
+		hᵢ₊₁ = φ(Wᵢ hᵢ + bᵢ)    ∀ i ∈ {0, …, L − 1}
+		y = W_L h_L + b_L
 
-		where  φ = `activation`
+		where  d_h ≜ hidden width determined from `dim_hidden`,  φ ≜ `activation`
 	```
-	paper-default affine block : equation
+	default mask-head affine block : equation
 	```
-		For `hunterFormsBS.bandSplit.MaskEstimator` with `depth = 1`,
-		`dim_hidden = 4 · dim_in`, and the hyperbolic tangent activation,
+		Let  x denote one band-local input vector,  d ≜ `dim_in`
 
-		h = tanh(W₁ x + b₁)
+		L = 1
+		d_h = 4d
+		φ = tanh
+		h = φ(W₁ x + b₁)
 		g = W₂ h + b₂
+
+		where  g ≜ affine output returned by `MLP` before the later gate in
+			`hunterFormsBS.bandSplit.MaskEstimator`
 	```
 
 	Layer Construction
@@ -552,7 +658,7 @@ def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1
 	net: list[nn.Module] = []
 	dims: tuple[int, ...] = (dim_in, *((dim_hidden,) * depth), dim_out)
 
-	for ind, (layer_dim_in, layer_dim_out) in enumerate(zip(dims[:-1], dims[1:], strict=True)):  # noqa: RUF007
+	for ind, (layer_dim_in, layer_dim_out) in enumerate(zip(dims[:-1], dims[1:], strict=True)):
 		is_last: bool = ind == (len(dims) - 2)
 
 		net.append(nn.Linear(layer_dim_in, layer_dim_out))
@@ -563,3 +669,742 @@ def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1
 		net.append(activation())
 
 	return nn.Sequential(*net)
+
+class Conv(nn.Module):
+	def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, bias=False):
+		super().__init__()
+		self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=bias)
+		self.bn = nn.InstanceNorm2d(c2, affine=norm_affine, eps=norm_eps)
+		self.act = activation() if act else nn.Identity()
+
+	def forward(self, x):
+		return self.act(self.bn(self.conv(x)))
+
+def autopad(k, p=None):
+	if p is None:
+		p = k // 2 if isinstance(k, int) else [x // 2 for x in k]
+	return p
+
+class DSConv(nn.Module):
+	def __init__(self, c1, c2, k=3, s=1, p=None, act=True, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, bias=False):
+		super().__init__()
+		self.dwconv = nn.Conv2d(c1, c1, k, s, autopad(k, p), groups=c1, bias=bias)
+		self.pwconv = nn.Conv2d(c1, c2, 1, 1, 0, bias=bias)
+		self.bn = nn.InstanceNorm2d(c2, affine=norm_affine, eps=norm_eps)
+		self.act = activation() if act else nn.Identity()
+
+	def forward(self, x):
+		return self.act(self.bn(self.pwconv(self.dwconv(x))))
+
+class DS_Bottleneck(nn.Module):
+	def __init__(self, c1, c2, k=3, shortcut=True, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, bias=False):
+		super().__init__()
+		c_ = c1
+		self.dsconv1 = DSConv(c1, c_, k=3, s=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.dsconv2 = DSConv(c_, c2, k=k, s=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.shortcut = shortcut and c1 == c2
+
+	def forward(self, x):
+		return x + self.dsconv2(self.dsconv1(x)) if self.shortcut else self.dsconv2(self.dsconv1(x))
+
+class DS_C3k(nn.Module):
+	def __init__(self, c1, c2, n=1, k=3, e=0.5, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, bias=False):
+		super().__init__()
+		c_ = int(c2 * e)
+		self.cv1 = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.cv2 = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.cv3 = Conv(2 * c_, c2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.m = nn.Sequential(
+			*[
+				DS_Bottleneck(c_, c_, k=k, shortcut=True, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+				for _ in range(n)
+			]
+		)
+
+	def forward(self, x):
+		return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
+
+class DS_C3k2(nn.Module):
+	def __init__(self, c1, c2, n=1, k=3, e=0.5, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, bias=False):
+		super().__init__()
+		c_ = int(c2 * e)
+		self.cv1 = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.m = DS_C3k(c_, c_, n=n, k=k, e=1.0, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.cv2 = Conv(c_, c2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+
+	def forward(self, x):
+		x_ = self.cv1(x)
+		x_ = self.m(x_)
+		return self.cv2(x_)
+
+class AdaptiveHyperedgeGeneration(nn.Module):
+	def __init__(self, in_channels, num_hyperedges, num_heads=8, linear_bias=False):
+		super().__init__()
+		self.num_hyperedges = num_hyperedges
+		self.num_heads = num_heads
+		self.head_dim = in_channels // num_heads
+
+		self.global_proto = nn.Parameter(torch.randn(num_hyperedges, in_channels))
+
+		self.context_mapper = nn.Linear(2 * in_channels, num_hyperedges * in_channels, bias=linear_bias)
+
+		self.query_proj = nn.Linear(in_channels, in_channels, bias=linear_bias)
+
+		self.scale = self.head_dim**-0.5
+
+	def forward(self, x):
+		B, N, C = x.shape
+
+		f_avg = F.adaptive_avg_pool1d(x.permute(0, 2, 1), 1).squeeze(-1)
+		f_max = F.adaptive_max_pool1d(x.permute(0, 2, 1), 1).squeeze(-1)
+		f_ctx = torch.cat((f_avg, f_max), dim=1)
+
+		delta_P = self.context_mapper(f_ctx).view(B, self.num_hyperedges, C)
+		P = self.global_proto.unsqueeze(0) + delta_P
+
+		z = self.query_proj(x)
+
+		z = z.view(B, N, self.num_heads, self.head_dim).permute(0, 2, 1, 3)
+
+		P = P.view(B, self.num_hyperedges, self.num_heads, self.head_dim).permute(0, 2, 3, 1)
+
+		sim = (z @ P) * self.scale
+
+		s_bar = sim.mean(dim=1)
+
+		A = F.softmax(s_bar.permute(0, 2, 1), dim=-1)
+
+		return A
+
+class HypergraphConvolution(nn.Module):
+	def __init__(self, in_channels, out_channels, activation=nn.SiLU, linear_bias=False):
+		super().__init__()
+		self.W_e = nn.Linear(in_channels, in_channels, bias=linear_bias)
+		self.W_v = nn.Linear(in_channels, out_channels, bias=linear_bias)
+		self.act = activation()
+
+	def forward(self, x, A):
+		f_m = torch.bmm(A, x)
+		f_m = self.act(self.W_e(f_m))
+
+		x_out = torch.bmm(A.transpose(1, 2), f_m)
+		x_out = self.act(self.W_v(x_out))
+
+		return x + x_out
+
+class AdaptiveHypergraphComputation(nn.Module):
+	def __init__(self, in_channels, out_channels, num_hyperedges=8, num_heads=8, activation=nn.SiLU, linear_bias=False):
+		super().__init__()
+		self.adaptive_hyperedge_gen = AdaptiveHyperedgeGeneration(in_channels, num_hyperedges, num_heads, linear_bias=linear_bias)
+		self.hypergraph_conv = HypergraphConvolution(in_channels, out_channels, activation=activation, linear_bias=linear_bias)
+
+	def forward(self, x):
+		B, C, H, W = x.shape
+		x_flat = x.flatten(2).permute(0, 2, 1)
+
+		A = self.adaptive_hyperedge_gen(x_flat)
+
+		x_out_flat = self.hypergraph_conv(x_flat, A)
+
+		x_out = x_out_flat.permute(0, 2, 1).view(B, -1, H, W)
+		return x_out
+
+class C3AH(nn.Module):
+	def __init__(
+		self,
+		c1,
+		c2,
+		num_hyperedges=8,
+		num_heads=8,
+		e=0.5,
+		activation=nn.SiLU,
+		norm_eps=1e-8,
+		norm_affine=True,
+		conv_bias=False,
+		linear_bias=False,
+	):
+		super().__init__()
+		c_ = int(c1 * e)
+		self.cv1 = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.cv2 = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.ahc = AdaptiveHypergraphComputation(c_, c_, num_hyperedges, num_heads, activation=activation, linear_bias=linear_bias)
+		self.cv3 = Conv(2 * c_, c2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+
+	def forward(self, x):
+		x_lateral = self.cv1(x)
+		x_ahc = self.ahc(self.cv2(x))
+		return self.cv3(torch.cat((x_ahc, x_lateral), dim=1))
+
+class HyperACE(nn.Module):
+	def __init__(
+		self,
+		in_channels: list[int],
+		out_channels: int,
+		num_hyperedges=8,
+		num_heads=8,
+		k=2,
+		l=1,
+		c_h=0.5,
+		c_l=0.25,
+		c3ah_expansion=1.0,
+		low_order_depth=1,
+		low_order_kernel=3,
+		low_order_expansion=1.0,
+		activation=nn.SiLU,
+		norm_eps=1e-8,
+		norm_affine=True,
+		conv_bias=False,
+		linear_bias=False,
+	):
+		super().__init__()
+
+		c2, c3, c4, c5 = in_channels
+		c_mid = c4
+
+		self.fuse_conv = Conv(
+			c2 + c3 + c4 + c5, c_mid, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias
+		)
+
+		self.c_h = int(c_mid * c_h)
+		self.c_l = int(c_mid * c_l)
+		self.c_s = c_mid - self.c_h - self.c_l
+		assert self.c_s > 0, 'Channel split error'
+
+		self.high_order_branch = nn.ModuleList(
+			[
+				C3AH(
+					self.c_h,
+					self.c_h,
+					num_hyperedges,
+					num_heads,
+					e=c3ah_expansion,
+					activation=activation,
+					norm_eps=norm_eps,
+					norm_affine=norm_affine,
+					conv_bias=conv_bias,
+					linear_bias=linear_bias,
+				)
+				for _ in range(k)
+			]
+		)
+		self.high_order_fuse = Conv(
+			self.c_h * k, self.c_h, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias
+		)
+
+		self.low_order_branch = nn.Sequential(
+			*[
+				DS_C3k(
+					self.c_l,
+					self.c_l,
+					n=low_order_depth,
+					k=low_order_kernel,
+					e=low_order_expansion,
+					activation=activation,
+					norm_eps=norm_eps,
+					norm_affine=norm_affine,
+					bias=conv_bias,
+				)
+				for _ in range(l)
+			]
+		)
+
+		self.final_fuse = Conv(
+			self.c_h + self.c_l + self.c_s,
+			out_channels,
+			1,
+			1,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			bias=conv_bias,
+		)
+
+	def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
+		B2, B3, B4, B5 = x
+
+		B, _, H4, W4 = B4.shape
+
+		B2_resized = F.interpolate(B2, size=(H4, W4), mode='bilinear', align_corners=False)
+		B3_resized = F.interpolate(B3, size=(H4, W4), mode='bilinear', align_corners=False)
+		B5_resized = F.interpolate(B5, size=(H4, W4), mode='bilinear', align_corners=False)
+
+		x_b = self.fuse_conv(torch.cat((B2_resized, B3_resized, B4, B5_resized), dim=1))
+
+		x_h, x_l, x_s = torch.split(x_b, [self.c_h, self.c_l, self.c_s], dim=1)
+
+		x_h_outs = [m(x_h) for m in self.high_order_branch]
+		x_h_fused = self.high_order_fuse(torch.cat(x_h_outs, dim=1))
+
+		x_l_out = self.low_order_branch(x_l)
+
+		y = self.final_fuse(torch.cat((x_h_fused, x_l_out, x_s), dim=1))
+
+		return y
+
+class GatedFusion(nn.Module):
+	def __init__(self, in_channels):
+		super().__init__()
+		self.gamma = nn.Parameter(torch.zeros(1, in_channels, 1, 1))
+
+	def forward(self, f_in, h):
+		if f_in.shape[1] != h.shape[1]:
+			raise ValueError(f'Channel mismatch: f_in={f_in.shape}, h={h.shape}')
+		return f_in + self.gamma * h
+
+class Backbone(nn.Module):
+	def __init__(
+		self,
+		in_channels=256,
+		base_channels=64,
+		base_depth=3,
+		channels: tuple[int, int, int, int, int] | None = None,
+		activation=nn.SiLU,
+		norm_eps=1e-8,
+		norm_affine=True,
+		conv_bias=False,
+	):
+		super().__init__()
+		if channels is None:
+			c2 = base_channels
+			c3 = 256
+			c4 = 384
+			c5 = 512
+			c6 = 768
+		else:
+			c2, c3, c4, c5, c6 = channels
+
+		self.stem = DSConv(
+			in_channels, c2, k=3, s=(2, 1), p=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias
+		)
+
+		self.p2 = nn.Sequential(
+			DSConv(c2, c3, k=3, s=(2, 1), p=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias),
+			DS_C3k2(c3, c3, n=base_depth, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias),
+		)
+
+		self.p3 = nn.Sequential(
+			DSConv(c3, c4, k=3, s=(2, 1), p=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias),
+			DS_C3k2(c4, c4, n=base_depth * 2, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias),
+		)
+
+		self.p4 = nn.Sequential(
+			DSConv(c4, c5, k=3, s=2, p=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias),
+			DS_C3k2(c5, c5, n=base_depth * 2, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias),
+		)
+
+		self.p5 = nn.Sequential(
+			DSConv(c5, c6, k=3, s=2, p=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias),
+			DS_C3k2(c6, c6, n=base_depth, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias),
+		)
+
+		self.out_channels = [c3, c4, c5, c6]
+
+	def forward(self, x):
+		x = self.stem(x)
+		x2 = self.p2(x)
+		x3 = self.p3(x2)
+		x4 = self.p4(x3)
+		x5 = self.p5(x4)
+		return [x2, x3, x4, x5]
+
+class Decoder(nn.Module):
+	def __init__(
+		self,
+		encoder_channels: list[int],
+		hyperace_out_c: int,
+		decoder_channels: list[int],
+		block_depth=1,
+		block_kernel=3,
+		block_expansion=0.5,
+		activation=nn.SiLU,
+		norm_eps=1e-8,
+		norm_affine=True,
+		conv_bias=False,
+	):
+		super().__init__()
+		c_p2, c_p3, c_p4, c_p5 = encoder_channels
+		c_d2, c_d3, c_d4, c_d5 = decoder_channels
+
+		self.h_to_d5 = Conv(hyperace_out_c, c_d5, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.h_to_d4 = Conv(hyperace_out_c, c_d4, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.h_to_d3 = Conv(hyperace_out_c, c_d3, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.h_to_d2 = Conv(hyperace_out_c, c_d2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+
+		self.fusion_d5 = GatedFusion(c_d5)
+		self.fusion_d4 = GatedFusion(c_d4)
+		self.fusion_d3 = GatedFusion(c_d3)
+		self.fusion_d2 = GatedFusion(c_d2)
+
+		self.skip_p5 = Conv(c_p5, c_d5, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.skip_p4 = Conv(c_p4, c_d4, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.skip_p3 = Conv(c_p3, c_d3, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.skip_p2 = Conv(c_p2, c_d2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+
+		self.up_d5 = DS_C3k2(
+			c_d5,
+			c_d4,
+			n=block_depth,
+			k=block_kernel,
+			e=block_expansion,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			bias=conv_bias,
+		)
+		self.up_d4 = DS_C3k2(
+			c_d4,
+			c_d3,
+			n=block_depth,
+			k=block_kernel,
+			e=block_expansion,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			bias=conv_bias,
+		)
+		self.up_d3 = DS_C3k2(
+			c_d3,
+			c_d2,
+			n=block_depth,
+			k=block_kernel,
+			e=block_expansion,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			bias=conv_bias,
+		)
+
+		self.final_d2 = DS_C3k2(
+			c_d2,
+			c_d2,
+			n=block_depth,
+			k=block_kernel,
+			e=block_expansion,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			bias=conv_bias,
+		)
+
+	def forward(self, enc_feats: list[torch.Tensor], h_ace: torch.Tensor):
+		p2, p3, p4, p5 = enc_feats
+
+		d5 = self.skip_p5(p5)
+		h_d5 = self.h_to_d5(F.interpolate(h_ace, size=d5.shape[2:], mode='bilinear'))
+		d5 = self.fusion_d5(d5, h_d5)
+
+		d5_up = F.interpolate(d5, size=p4.shape[2:], mode='bilinear')
+		d4_skip = self.skip_p4(p4)
+		d4 = self.up_d5(d5_up) + d4_skip
+
+		h_d4 = self.h_to_d4(F.interpolate(h_ace, size=d4.shape[2:], mode='bilinear'))
+		d4 = self.fusion_d4(d4, h_d4)
+
+		d4_up = F.interpolate(d4, size=p3.shape[2:], mode='bilinear')
+		d3_skip = self.skip_p3(p3)
+		d3 = self.up_d4(d4_up) + d3_skip
+
+		h_d3 = self.h_to_d3(F.interpolate(h_ace, size=d3.shape[2:], mode='bilinear'))
+		d3 = self.fusion_d3(d3, h_d3)
+
+		d3_up = F.interpolate(d3, size=p2.shape[2:], mode='bilinear')
+		d2_skip = self.skip_p2(p2)
+		d2 = self.up_d3(d3_up) + d2_skip
+
+		h_d2 = self.h_to_d2(F.interpolate(h_ace, size=d2.shape[2:], mode='bilinear'))
+		d2 = self.fusion_d2(d2, h_d2)
+
+		d2_final = self.final_d2(d2)
+
+		return d2_final
+
+class TFC_TDF(nn.Module):
+	def __init__(self, in_c, c, l, f, bn=4, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, conv_bias=False, linear_bias=False):
+		super().__init__()
+
+		self.blocks = nn.ModuleList()
+		for i in range(l):
+			block = nn.Module()
+
+			block.tfc1 = nn.Sequential(
+				nn.InstanceNorm2d(in_c, affine=norm_affine, eps=norm_eps), activation(), nn.Conv2d(in_c, c, 3, 1, 1, bias=conv_bias)
+			)
+			block.tdf = nn.Sequential(
+				nn.InstanceNorm2d(c, affine=norm_affine, eps=norm_eps),
+				activation(),
+				nn.Linear(f, f // bn, bias=linear_bias),
+				nn.InstanceNorm2d(c, affine=norm_affine, eps=norm_eps),
+				activation(),
+				nn.Linear(f // bn, f, bias=linear_bias),
+			)
+			block.tfc2 = nn.Sequential(
+				nn.InstanceNorm2d(c, affine=norm_affine, eps=norm_eps), activation(), nn.Conv2d(c, c, 3, 1, 1, bias=conv_bias)
+			)
+			block.shortcut = nn.Conv2d(in_c, c, 1, 1, 0, bias=conv_bias)
+
+			self.blocks.append(block)
+			in_c = c
+
+	def forward(self, x):
+		for block in self.blocks:
+			s = block.shortcut(x)
+			x = block.tfc1(x)
+			x = x + block.tdf(x)
+			x = block.tfc2(x)
+			x = x + s
+		return x
+
+class FreqPixelShuffle(nn.Module):
+	def __init__(
+		self,
+		in_channels,
+		out_channels,
+		scale,
+		f,
+		tfc_tdf_depth=2,
+		tfc_tdf_bn=4,
+		activation=nn.SiLU,
+		norm_eps=1e-8,
+		norm_affine=True,
+		conv_bias=False,
+		linear_bias=False,
+	):
+		super().__init__()
+		self.scale = scale
+		self.conv = DSConv(
+			in_channels, out_channels * scale, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias
+		)
+		self.out_conv = TFC_TDF(
+			out_channels,
+			out_channels,
+			tfc_tdf_depth,
+			f,
+			bn=tfc_tdf_bn,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			conv_bias=conv_bias,
+			linear_bias=linear_bias,
+		)
+
+	def forward(self, x):
+		x = self.conv(x)
+		B, C_r, H, W = x.shape
+		out_c = C_r // self.scale
+
+		x = x.view(B, out_c, self.scale, H, W)
+
+		x = x.permute(0, 1, 3, 4, 2).contiguous()
+		x = x.view(B, out_c, H, W * self.scale)
+
+		return self.out_conv(x)
+
+class ProgressiveUpsampleHead(nn.Module):
+	def __init__(
+		self,
+		in_channels,
+		out_channels,
+		target_bins=1025,
+		in_bands=62,
+		upsample_scales: tuple[int, int, int, int] = (2, 2, 2, 2),
+		tfc_tdf_depth=2,
+		tfc_tdf_bn=4,
+		activation=nn.SiLU,
+		norm_eps=1e-8,
+		norm_affine=True,
+		conv_bias=False,
+		linear_bias=False,
+	):
+		super().__init__()
+		self.target_bins = target_bins
+
+		c = in_channels
+		scale1, scale2, scale3, scale4 = upsample_scales
+		f1 = in_bands * scale1
+		f2 = f1 * scale2
+		f3 = f2 * scale3
+		f4 = f3 * scale4
+
+		self.block1 = FreqPixelShuffle(
+			c,
+			c // 2,
+			scale=scale1,
+			f=f1,
+			tfc_tdf_depth=tfc_tdf_depth,
+			tfc_tdf_bn=tfc_tdf_bn,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			conv_bias=conv_bias,
+			linear_bias=linear_bias,
+		)
+		self.block2 = FreqPixelShuffle(
+			c // 2,
+			c // 4,
+			scale=scale2,
+			f=f2,
+			tfc_tdf_depth=tfc_tdf_depth,
+			tfc_tdf_bn=tfc_tdf_bn,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			conv_bias=conv_bias,
+			linear_bias=linear_bias,
+		)
+		self.block3 = FreqPixelShuffle(
+			c // 4,
+			c // 8,
+			scale=scale3,
+			f=f3,
+			tfc_tdf_depth=tfc_tdf_depth,
+			tfc_tdf_bn=tfc_tdf_bn,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			conv_bias=conv_bias,
+			linear_bias=linear_bias,
+		)
+		self.block4 = FreqPixelShuffle(
+			c // 8,
+			c // 16,
+			scale=scale4,
+			f=f4,
+			tfc_tdf_depth=tfc_tdf_depth,
+			tfc_tdf_bn=tfc_tdf_bn,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			conv_bias=conv_bias,
+			linear_bias=linear_bias,
+		)
+
+		self.final_conv = nn.Conv2d(c // 16, out_channels, kernel_size=3, stride=1, padding='same', bias=conv_bias)
+
+	def forward(self, x):
+
+		x = self.block1(x)
+		x = self.block2(x)
+		x = self.block3(x)
+		x = self.block4(x)
+
+		if x.shape[-1] != self.target_bins:
+			x = F.interpolate(x, size=(x.shape[2], self.target_bins), mode='bilinear', align_corners=False)
+
+		x = self.final_conv(x)
+		return x
+
+class SegmModel(nn.Module):
+	def __init__(
+		self,
+		in_bands=62,
+		in_dim=256,
+		out_bins=1025,
+		out_channels=4,
+		base_channels=64,
+		base_depth=2,
+		num_hyperedges=32,
+		num_heads=8,
+		backbone_channels: tuple[int, int, int, int, int] | None = None,
+		hyperace_k=2,
+		hyperace_l=1,
+		hyperace_c_h=0.5,
+		hyperace_c_l=0.25,
+		hyperace_c3ah_expansion=1.0,
+		hyperace_low_order_depth=1,
+		hyperace_low_order_kernel=3,
+		hyperace_low_order_expansion=1.0,
+		hyperace_out_channels: int | None = None,
+		decoder_channels: list[int] | tuple[int, int, int, int] | None = None,
+		decoder_block_depth=1,
+		decoder_block_kernel=3,
+		decoder_block_expansion=0.5,
+		upsample_scales: tuple[int, int, int, int] = (2, 2, 2, 2),
+		upsample_tfc_tdf_depth=2,
+		upsample_tfc_tdf_bn=4,
+		activation=nn.SiLU,
+		norm_eps=1e-8,
+		norm_affine=True,
+		conv_bias=False,
+		linear_bias=False,
+	):
+		super().__init__()
+
+		self.backbone = Backbone(
+			in_channels=in_dim,
+			base_channels=base_channels,
+			base_depth=base_depth,
+			channels=backbone_channels,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			conv_bias=conv_bias,
+		)
+		enc_channels = self.backbone.out_channels
+		c2, c3, c4, c5 = enc_channels
+
+		hyperace_in_channels = enc_channels
+		hyperace_out_channels = c4 if hyperace_out_channels is None else hyperace_out_channels
+		self.hyperace = HyperACE(
+			hyperace_in_channels,
+			hyperace_out_channels,
+			num_hyperedges,
+			num_heads,
+			k=hyperace_k,
+			l=hyperace_l,
+			c_h=hyperace_c_h,
+			c_l=hyperace_c_l,
+			c3ah_expansion=hyperace_c3ah_expansion,
+			low_order_depth=hyperace_low_order_depth,
+			low_order_kernel=hyperace_low_order_kernel,
+			low_order_expansion=hyperace_low_order_expansion,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			conv_bias=conv_bias,
+			linear_bias=linear_bias,
+		)
+
+		decoder_channels = [c2, c3, c4, c5] if decoder_channels is None else list(decoder_channels)
+		self.decoder = Decoder(
+			enc_channels,
+			hyperace_out_channels,
+			decoder_channels,
+			block_depth=decoder_block_depth,
+			block_kernel=decoder_block_kernel,
+			block_expansion=decoder_block_expansion,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			conv_bias=conv_bias,
+		)
+
+		self.upsample_head = ProgressiveUpsampleHead(
+			in_channels=decoder_channels[0],
+			out_channels=out_channels,
+			target_bins=out_bins,
+			in_bands=in_bands,
+			upsample_scales=upsample_scales,
+			tfc_tdf_depth=upsample_tfc_tdf_depth,
+			tfc_tdf_bn=upsample_tfc_tdf_bn,
+			activation=activation,
+			norm_eps=norm_eps,
+			norm_affine=norm_affine,
+			conv_bias=conv_bias,
+			linear_bias=linear_bias,
+		)
+
+	def forward(self, x):
+		H, W = x.shape[2:]
+
+		enc_feats = self.backbone(x)
+
+		h_ace_feats = self.hyperace(enc_feats)
+
+		dec_feat = self.decoder(enc_feats, h_ace_feats)
+
+		feat_time_restored = F.interpolate(dec_feat, size=(H, dec_feat.shape[-1]), mode='bilinear', align_corners=False)
+
+		out = self.upsample_head(feat_time_restored)
+
+		return out
+

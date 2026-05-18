@@ -171,9 +171,9 @@ class BandSplitRotator(Module):
 	downstream parameter passthrough : behavior
 		`BandSplitRotator.__init__` exposes parameters that are forwarded to downstream transformer,
 		attention, mask-estimator, STFT, and loss components. The forwarded identifiers stay
-		consistent across the downstream classes, including `attn_dropout`, `ff_dropout`,
-		`learned_value_residual_mix`, `num_residual_streams`, `sage_attention`, `scale`, and
-		`use_value_residual_learning`.
+		consistent across the downstream classes, including `activation`, `attn_dropout`,
+		`ff_dropout`, `learned_value_residual_mix`, `num_residual_streams`, `sage_attention`,
+		`scale`, and `use_value_residual_learning`.
 	stem selection : behavior
 		`forward` accepts `active_stem_ids`. The selected mask-estimator head index list becomes the
 		`stem_ids` value passed to `hunterFormsBS.bandSplit.lossComputation` [7], so an external
@@ -222,6 +222,7 @@ class BandSplitRotator(Module):
 		dim: int,
 		*,
 		depth: int,
+		activation: type[nn.Module] = nn.Tanh,
 		attn_dropout: float = 0.0,
 		dim_freqs_in: int = 1025,  # noqa: ARG002
 		dim_head: int = 64,
@@ -260,6 +261,7 @@ class BandSplitRotator(Module):
 		stft_win_length: int = 1024,
 		stft_window_fn: Callable[..., Tensor] = halfsineTensor,
 		time_transformer_depth: int = 2,
+		use_hyperACE: bool = False,
 		use_pope: bool = False,
 		use_torch_checkpoint: bool = False,
 		use_value_residual_learning: bool = False,
@@ -281,6 +283,10 @@ class BandSplitRotator(Module):
 		depth : int
 			Number of top-level layer groups. Each group contains one time-axis transformer block and
 			one frequency-axis transformer block.
+		activation : type[nn.Module] = nn.Tanh
+			Activation class instantiated between non-final linear layers inside each downstream
+			mask-estimator feedforward block. The default value keeps the hyperbolic tangent activation
+			used by the package defaults.
 		attn_dropout : float = 0.0
 			Dropout probability forwarded to each downstream attention block.
 		dim_freqs_in : int = 1025
@@ -560,9 +566,15 @@ class BandSplitRotator(Module):
 
 		freqs_per_bands_with_complex: tuple[int, ...] = tuple(map(partial(mul, 2 * self.audio_channels), num_freqs_per_band.tolist())) # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]  # ty:ignore[invalid-assignment]
 		self.band_split: BandSplit = BandSplit(dim=dim, dim_inputs=freqs_per_bands_with_complex)
-		self.mask_estimators: ModuleList = nn.ModuleList([])
-		for _stem_index in loops(self.num_stems):
-			self.mask_estimators.append(MaskEstimator(dim, freqs_per_bands_with_complex, depth=raiseIfNone(mask_estimator_depth, f'I received {mask_estimator_depth = }, but I need a type `int` > 0. If you are migrating a `BSRoformer` checkpoint and the old default value was `2`, then you probably want `mask_estimator_depth = 1` in this package.'), mlp_expansion_factor=mlp_expansion_factor))
+		self.mask_estimators: ModuleList = nn.ModuleList([
+			MaskEstimator(dim
+				, freqs_per_bands_with_complex
+				, depth=raiseIfNone(mask_estimator_depth, f'I received {mask_estimator_depth = }, but I need a type `int` > 0. If you are migrating a `BSRoformer` checkpoint and the old default value was `2`, then you probably want `mask_estimator_depth = 1` in this package.')
+				, mlp_expansion_factor=mlp_expansion_factor
+				, activation=activation
+				, use_hyperACE=use_hyperACE
+			) for _stem_index in loops(self.num_stems)
+		])
 
 		freqs: int = stft_n_fft // 2 + 1
 		repeated_freq_indices: Tensor = repeat(torch.arange(freqs), 'f -> b f', b=num_bands)
