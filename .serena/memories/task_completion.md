@@ -1,6 +1,7 @@
 # What to do when a coding task is finished
-- Keep diffs minimal and preserve intentional minimal-diff wrappers unless cleanup is explicitly requested.
-- Do not normalize `bs_roformer.py` / `mel_band_roformer.py` just because the identifiers or flow are ugly; some of that ugliness is deliberate for comparison and drop-in compatibility.
+- Keep diffs minimal and preserve compatibility behavior unless cleanup is explicitly requested.
+- Do not reintroduce removed experimental modules (`attend_experimental.py`, `bs_roformer_experimental.py`, `mel_band_roformer_experimental.py`) or `LinearAttention`; the useful options now belong in the converged stable modules.
+- When touching `BandSplitRotator`, `BSRoformer`, `MelBandRoformer`, or `attend.py`, verify that downstream constructor options are still exposed, forwarded, and named consistently through the chain.
 - Use only the task-relevant instruction file / specialized agent. Do not load every `.github/HH-*.md` instruction by default.
 - Prefer MCP tools over terminal whenever the MCP route covers the need, especially Pylance / Problems for diagnostics and GitHub MCP for repository operations.
 - For changed Python files:

@@ -3,7 +3,20 @@ extend = "pyproject.toml"
 line-length = 140
 
 [lint]
-allowed-confusables = ["σ", "×", "−", "ℝ", "′", "γ", "⊗", "ρ", "ℓ", "∪", "α"]
+allowed-confusables = [
+  "′",
+  "×",
+  "−",
+  "∨",
+  "∪",
+  "⊗",
+  "ℓ",
+  "ℝ",
+  "α",
+  "γ",
+  "ρ",
+  "σ",
+]
 ignore = [
   "ANN401",
   "C901",

@@ -7,7 +7,7 @@ Instead of treating `BSRoformer` and `MelBandRoformer` as separate architectures
 [![pip install hunterFormsBS](https://img.shields.io/badge/pip_install-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
 [![uv add hunterFormsBS](https://img.shields.io/badge/uv_add-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
 
-The codebase is implemented in PyTorch, fully typed (`py.typed`), and designed for modular reuse so research ideas (for example PoPE or custom filter banks) can be integrated without splitting into parallel implementations.
+The codebase is implemented in PyTorch, fully typed (`py.typed`), and designed for modular reuse so options such as PoPE, custom filter banks, value-residual learning, residual streams, and optional SageAttention acceleration can live on one aligned constructor surface.
 
 ## Quick fix: size mismatch when loading a checkpoint
 
@@ -22,8 +22,8 @@ Updating that value resolves the most common mismatch quickly.
 ## Why this architecture helps in practice
 
 - **Forward-looking architecture:** A single model family makes it easier to adopt new ideas, such as PoPE or custom band-split definitions, while keeping interfaces aligned with established ecosystems.
-- **Universal configuration:** Configurable backward compatibility with existing standards.
-- **Rich tooling & Ecosystem:** The package provides strong typing (`py.typed`), modular APIs, and rich docstrings focusing on usage, literature citations, and migration paths.
+- **Universal configuration:** `BandSplitRotator`, `BSRoformer`, and `MelBandRoformer` share downstream option names for attention, transformer, mask-estimator, STFT, and loss settings.
+- **Rich tooling and ecosystem:** The package provides strong typing (`py.typed`), modular APIs, and rich docstrings focusing on usage, literature citations, and migration paths.
 
 ## Easy to migrate
 
@@ -36,11 +36,14 @@ If you're changing from an existing codebase, you can use the **transition modul
 The key design idea is that the difference between the BS-style front end and the mel-band front end
 is treated as a band-layout problem, not as a reason to maintain two unrelated model families.
 
-- `hunterFormsBS.bandSplitRotator.BandSplitRotator` is the new universal entry point.
+- `hunterFormsBS.bandSplitRotator.BandSplitRotator` is the primary unified entry point.
 - `hunterFormsBS.bs_roformer.BSRoformer` and `hunterFormsBS.mel_band_roformer.MelBandRoformer` serve as transition modules, keeping familiar APIs, upstream names, and defaults.
 - `hunterFormsBS.bandSplit.BandSplit`, `hunterFormsBS.bandSplit.MaskEstimator`, and
   `hunterFormsBS.attend.Transformer` hold the reusable typed building blocks shared across those entry
   points.
+- Attention and transformer options such as `attn_dropout`, `ff_dropout`, `flash_attn`,
+  `sage_attention`, `scale`, `num_residual_streams`, and `use_value_residual_learning` keep the same
+  identifiers as they move from model constructors into downstream blocks.
 
 At the band level, the model only needs a band-membership map, called `mask_filter_bank` in the
 codebase. You can think of that map as a Boolean matrix
@@ -83,7 +86,17 @@ filter bank, not in two separate theories of the model.
 | `hunterFormsBS.BandSplitRotator`                  | You are starting new work or want one separator that can cover BS-style, mel-style, and custom band layouts.   | This is the unified model entry point.                                           |
 | `hunterFormsBS.bs_roformer.BSRoformer`            | You want the familiar non-overlapping BS-style interface or a close comparison with upstream BS-RoFormer code. | The constructor keeps BS-oriented defaults and compatibility fields.             |
 | `hunterFormsBS.mel_band_roformer.MelBandRoformer` | You want the familiar mel-band interface or a close comparison with upstream mel-band code.                    | The constructor keeps mel-oriented defaults and automatic mel-band construction. |
-| `hunterFormsBS.*_experimental`                    | You are testing research ideas such as value residual learning or hyper-connections.                           | These modules are exploratory and intentionally separate from the stable path.   |
+
+## Attention and optional acceleration
+
+`flash_attn=True` requests PyTorch scaled-dot-product-attention backends when the active device
+supports that path. `sage_attention=True` asks downstream `Attend` blocks to call
+`sageattention.sageattn`; install [SageAttention](https://github.com/thu-ml/SageAttention) manually
+before enabling it because `hunterFormsBS` does not install that package.
+
+`BandSplitRotator` can choose RoPE or PoPE with `use_pope`, and the same model family exposes
+value-residual and residual-stream controls for deeper attention experiments without changing entry
+points.
 
 ## Custom `mask_filter_bank` helpers
 
@@ -105,20 +118,19 @@ module. `librosa` is only needed if you call `librosa_filters_mel`.
 ## Package map
 
 - `hunterFormsBS.__init__`
-  - Main symbols: `BandSplitRotator`, `BandSplit`, `MaskEstimator`, `Transformer`,
-    `lossComputation`, `DEFAULT_FREQS_PER_BANDS`, `ParametersComputeLoss`, `FlashAttentionConfig`,
-    `ParametersAttention`, `ParametersSTFT`, `ParametersTransformer`
-  - Purpose: public top-level namespace for the stable typed API.
+  - Direct export: `BandSplitRotator`
+  - Purpose: small top-level namespace for the primary separator model.
 - `hunterFormsBS.bandSplitRotator`
   - Main symbols: `BandSplitRotator`
   - Purpose: unified separator that can build BS-style, mel-style, or custom band layouts from one
-    model family.
+    model family, with downstream attention, transformer, STFT, mask-estimator, and loss options on
+    the constructor.
 - `hunterFormsBS.bs_roformer`
   - Main symbols: `BSRoformer`
-  - Purpose: stable compatibility module for the non-overlapping BS-style variant.
+  - Purpose: familiar non-overlapping BS-style interface with BS-oriented defaults.
 - `hunterFormsBS.mel_band_roformer`
   - Main symbols: `MelBandRoformer`
-  - Purpose: stable compatibility module for the overlapping mel-band variant.
+  - Purpose: familiar mel-band interface with automatic mel-band construction.
 - `hunterFormsBS.make_static_mask_filter_bank`
   - Main symbols: `filter_bank_non_overlapping`, `librosa_filters_mel`, `print_static_mask`
   - Purpose: ad-hoc helper module that prints paste-ready static `mask_filter_bank` definitions for
@@ -129,20 +141,13 @@ module. `librosa` is only needed if you call `librosa_filters_mel`.
   - Purpose: shared band projection, mask-estimation heads, BS-style default partition, and
     training-loss helper.
 - `hunterFormsBS.attend`
-  - Main symbols: `Attend`, `Attention`, `FeedForward`, `LinearAttention`, `Transformer`
-  - Purpose: stable attention, feedforward, linear-attention, and transformer building blocks.
+  - Main symbols: `Attend`, `Attention`, `FeedForward`, `Transformer`
+  - Purpose: shared attention, feedforward, and transformer building blocks with RoPE / PoPE,
+    PyTorch SDPA, optional SageAttention, value-residual, and residual-stream support.
 - `hunterFormsBS.theTypes`
   - Main symbols: `ParametersComputeLoss`, `FlashAttentionConfig`, `ParametersAttention`, `ParametersSTFT`,
     `ParametersTransformer`
   - Purpose: typed configuration records used across the package.
-
-## Experimental module map
-
-| Module                                         | Main symbols                                         | Purpose                                                                                     |
-| ---------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `hunterFormsBS.attend_experimental`            | experimental `Attention`, experimental `Transformer` | Research-oriented attention blocks with value-residual mixing and hyper-connection support. |
-| `hunterFormsBS.bs_roformer_experimental`       | experimental `BSRoformer`                            | Experimental BS-style separator that uses the experimental attention stack.                 |
-| `hunterFormsBS.mel_band_roformer_experimental` | experimental `MelBandRoformer`                       | Experimental mel-band separator that uses the experimental attention stack.                 |
 
 ## Architecture in one sentence
 
@@ -155,8 +160,8 @@ STFT reconstruction back to waveform audio.
 
 ## Top-level exports
 
-The top-level package namespace currently re-exports the stable shared pieces that new users most
-often need:
+The top-level package namespace currently re-exports the primary model that new users most often
+need:
 
 - `BandSplitRotator`
 
@@ -223,6 +228,27 @@ imports so the main namespace remains small and optional dependencies stay optio
 - Implementations:
   - [Dao-AILab/flash-attention](https://github.com/Dao-AILab/flash-attention)
     - [context7](https://context7.com/dao-ailab/flash-attention)
+
+### SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration
+
+- [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/ICLR2025_b286c344.bib) [TeX Source with precise formulas for AI agents.](https://arxiv.org/src/2410.02367)
+- Proceedings: [proceedings.iclr.cc](https://proceedings.iclr.cc/paper_files/paper/2025/file/b286c344d38e10d2466c0514b78e2f36-Paper-Conference.pdf)
+- Implementation:
+  - [thu-ml/SageAttention](https://github.com/thu-ml/SageAttention)
+
+### SageAttention2: Efficient Attention with Thorough Outlier Smoothing and Per-thread INT4 Quantization
+
+- [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/pmlr-v267-zhang25ae.bib) [TeX Source with precise formulas for AI agents.](https://arxiv.org/src/2411.10958)
+- Proceedings: [proceedings.mlr.press](https://proceedings.mlr.press/v267/zhang25ae.html)
+- Implementation:
+  - [thu-ml/SageAttention](https://github.com/thu-ml/SageAttention)
+
+### SageAttention2++: A More Efficient Implementation of SageAttention2
+
+- [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/zhang2025sageattention.bib) [TeX Source with precise formulas for AI agents.](https://arxiv.org/src/2505.21136)
+- Workshop proceedings: [OpenReview](https://openreview.net/forum?id=Eev5rXcgng)
+- Implementation:
+  - [thu-ml/SageAttention](https://github.com/thu-ml/SageAttention)
 
 ### Einops: Clear and Reliable Tensor Manipulations with Einstein-like Notation
 

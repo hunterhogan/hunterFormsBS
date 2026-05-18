@@ -12,7 +12,7 @@
 # pyright: reportUnknownMemberType=false
 # pyright: reportUnknownParameterType=false
 # pyright: reportUnknownVariableType=false
-# ruff: noqa: D100, D101, D102, D103 ANN001 ANN201 ANN204 RET504 ARG002 B007 B905 C408 E101 E722 E741 EM102 ERA001 F841 FBT002 PT018 RUF007 RUF059 S101 SIM210 T201 TRY003
+# ruff: noqa: D100, D101, D102, D103, ANN001, ANN201, ANN204, RET504, ARG002, B007, B905, C408, E101, E722, E741, EM102, F841, FBT002, PT018, RUF007, RUF059, S101, SIM210, T201, TRY003
 from __future__ import annotations
 
 from einops import pack, rearrange, unpack

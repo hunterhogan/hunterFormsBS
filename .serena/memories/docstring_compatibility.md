@@ -1,0 +1,7 @@
+- The stable wrappers are now converged around `BandSplitRotator`, with `BSRoformer` and `MelBandRoformer` serving as transition / compatibility classes rather than separate experimental paths.
+- Docstrings should distinguish active behavior from compatibility-only parameters, especially `linear_transformer_depth`, `dim_freqs_in`, `mc_hyper_conn_sinkhorn_iters`, and `num_residual_fracs`.
+- Keep parameter identifiers consistent through wrapper, transformer, and attention classes. Examples: constructor `attn_dropout` should remain `attn_dropout` downstream, while module attributes can use explicit names such as `nn_Dropout` when they are layer objects.
+- `linear_transformer_depth` can still set the downstream `linear_attn` compatibility flag, but the current transformer stack no longer implements `LinearAttention`.
+- `sage_attention` is supported as an optional backend, but the `SageAttention` package is not installed by this repo and should be documented as a manual dependency.
+- The former `attend_experimental.py`, `bs_roformer_experimental.py`, and `mel_band_roformer_experimental.py` modules were removed after their useful options were integrated into the stable modules.
+- Mention `hunterFormsBS.make_static_mask_filter_bank` when documenting static mask/filter-bank generation or pasted tensor constants.

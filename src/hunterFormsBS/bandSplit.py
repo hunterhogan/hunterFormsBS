@@ -1,4 +1,4 @@
-"""Use band-splitting, mask estimation, and training-loss utilities for source separation.
+"""Use band-splitting, static mask-filter-bank, and training-loss utilities for source separation.
 
 You can use this module to build the frequency-domain front end and the per-stem output heads shared
 by BS-RoFormer [1] and Mel-Band RoFormer [2]. `BandSplit` projects grouped STFT frequency bins into a
@@ -6,33 +6,40 @@ common feature width. `MaskEstimator` converts band tokens back into complex sub
 constructs the band-local affine blocks used inside `MaskEstimator`. `lossComputation` combines a
 waveform-domain mean absolute error term with a multi-resolution complex-STFT term to produce the
 training objective. `DEFAULT_FREQS_PER_BANDS` provides the standard non-overlapping frequency-bin
-partition used by the BS-RoFormer front end.
+partition used by the BS-RoFormer front end. `mask_filter_bank_bs_roformer_default` and
+`mask_filter_bank_mel_band_default` provide bundled static Boolean band-membership maps for the common
+non-overlapping and mel-band layouts.
 
 Contents
 --------
 Functions
-    lossComputation
-        Compute waveform MAE and multi-resolution complex-STFT MAE for selected stems and return one
-        total loss or an expanded breakdown.
-    MLP
-        Build one feedforward projection sequence from an input width to an output width.
+	lossComputation
+		Compute waveform MAE and multi-resolution complex-STFT MAE for selected stems and return one
+		total loss or an expanded breakdown.
+	MLP
+		Build one feedforward projection sequence from an input width to an output width.
 
 Classes
-    BandSplit
-        Project concatenated band slices to a shared feature width.
-    MaskEstimator
-        Estimate one concatenated subband mask from a stack of band tokens.
+	BandSplit
+		Project concatenated band slices to a shared feature width.
+	MaskEstimator
+		Estimate one concatenated subband mask from a stack of band tokens.
 
 Variables
-    DEFAULT_FREQS_PER_BANDS
-        Standard non-overlapping frequency-bin partition for the BS-RoFormer front end.
+	DEFAULT_FREQS_PER_BANDS
+		Standard non-overlapping frequency-bin partition for the BS-RoFormer front end.
+	mask_filter_bank_bs_roformer_default
+		Static Boolean band-membership map matching `DEFAULT_FREQS_PER_BANDS`.
+	mask_filter_bank_mel_band_default
+		Static Boolean band-membership map for the common 60-band mel layout at 44.1 kHz and
+		`stft_n_fft=2048`.
 
 References
 ----------
 [1] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation with
-    Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
-[2] Wang, J.-C., Lu, W.-T., & Won, M. (2023). Mel-Band RoFormer for Music Source Separation.
-    https://arxiv.org/abs/2409.04702
+	Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
+[2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
+	Transcription https://arxiv.org/abs/2409.04702
 """
 from __future__ import annotations
 
@@ -51,7 +58,11 @@ if TYPE_CHECKING:
 
 DEFAULT_FREQS_PER_BANDS: tuple[int, ...] = (2,) * 24 + (4,) * 12 + (12,) * 8 + (24,) * 8 + (48,) * 8 + (128, 129)
 mask_filter_bank_mel_band_default: Tensor = tensor(dtype=torch.bool, data=[[1]*7+[0]*1018,[0]*4+[1]*6+[0]*1015,[0]*7+[1]*6+[0]*1012,[0]*10+[1]*6+[0]*1009,[0]*13+[1]*6+[0]*1006,[0]*16+[1]*6+[0]*1003,[0]*19+[1]*6+[0]*1000,[0]*22+[1]*6+[0]*997,[0]*25+[1]*6+[0]*994,[0]*28+[1]*6+[0]*991,[0]*31+[1]*6+[0]*988,[0]*34+[1]*6+[0]*985,[0]*37+[1]*6+[0]*982,[0]*40+[1]*6+[0]*979,[0]*43+[1]*6+[0]*976,[0]*46+[1]*7+[0]*972,[0]*49+[1]*7+[0]*969,[0]*53+[1]*7+[0]*965,[0]*56+[1]*9+[0]*960,[0]*60+[1]*9+[0]*956,[0]*65+[1]*9+[0]*951,[0]*69+[1]*10+[0]*946,[0]*74+[1]*10+[0]*941,[0]*79+[1]*11+[0]*935,[0]*84+[1]*13+[0]*928,[0]*90+[1]*13+[0]*922,[0]*97+[1]*13+[0]*915,[0]*103+[1]*15+[0]*907,[0]*110+[1]*16+[0]*899,[0]*118+[1]*17+[0]*890,[0]*126+[1]*19+[0]*880,[0]*135+[1]*20+[0]*870,[0]*145+[1]*20+[0]*860,[0]*155+[1]*22+[0]*848,[0]*165+[1]*24+[0]*836,[0]*177+[1]*26+[0]*822,[0]*189+[1]*28+[0]*808,[0]*203+[1]*29+[0]*793,[0]*217+[1]*31+[0]*777,[0]*232+[1]*33+[0]*760,[0]*248+[1]*36+[0]*741,[0]*265+[1]*39+[0]*721,[0]*284+[1]*41+[0]*700,[0]*304+[1]*44+[0]*677,[0]*325+[1]*47+[0]*653,[0]*348+[1]*50+[0]*627,[0]*372+[1]*54+[0]*599,[0]*398+[1]*57+[0]*570,[0]*426+[1]*61+[0]*538,[0]*455+[1]*66+[0]*504,[0]*487+[1]*71+[0]*467,[0]*521+[1]*76+[0]*428,[0]*558+[1]*80+[0]*387,[0]*597+[1]*86+[0]*342,[0]*638+[1]*93+[0]*294,[0]*683+[1]*99+[0]*243,[0]*731+[1]*105+[0]*189,[0]*782+[1]*113+[0]*130,[0]*836+[1]*122+[0]*67,[0]*895+[1]*130])
-"""This statement eliminates 19 package dependencies—`librosa` and its 18 unique dependencies—from this package. Furthermore, because the mask has static values, it should not rely on a computation that might change."""
+"""Access the bundled common mel-band Boolean membership mask.
+
+You can use `mask_filter_bank_mel_band_default` when the common `sample_rate=44100`,
+`stft_n_fft=2048`, and `num_bands=60` layout should use one packaged static tensor.
+"""
 mask_filter_bank_bs_roformer_default: torch.Tensor = torch.tensor(dtype=torch.bool, data=[[1,1]+[0]*1023,[0,0,1,1]+[0]*1021,[0]*4+[1,1]+[0]*1019,[0]*6+[1,1]+[0]*1017,[0]*8+[1,1]+[0]*1015,[0]*10+[1,1]+[0]*1013,[0]*12+[1,1]+[0]*1011,[0]*14+[1,1]+[0]*1009,[0]*16+[1,1]+[0]*1007,[0]*18+[1,1]+[0]*1005,[0]*20+[1,1]+[0]*1003,[0]*22+[1,1]+[0]*1001,[0]*24+[1,1]+[0]*999,[0]*26+[1,1]+[0]*997,[0]*28+[1,1]+[0]*995,[0]*30+[1,1]+[0]*993,[0]*32+[1,1]+[0]*991,[0]*34+[1,1]+[0]*989,[0]*36+[1,1]+[0]*987,[0]*38+[1,1]+[0]*985,[0]*40+[1,1]+[0]*983,[0]*42+[1,1]+[0]*981,[0]*44+[1,1]+[0]*979,[0]*46+[1,1]+[0]*977,[0]*48+[1]*4+[0]*973,[0]*52+[1]*4+[0]*969,[0]*56+[1]*4+[0]*965,[0]*60+[1]*4+[0]*961,[0]*64+[1]*4+[0]*957,[0]*68+[1]*4+[0]*953,[0]*72+[1]*4+[0]*949,[0]*76+[1]*4+[0]*945,[0]*80+[1]*4+[0]*941,[0]*84+[1]*4+[0]*937,[0]*88+[1]*4+[0]*933,[0]*92+[1]*4+[0]*929,[0]*96+[1]*12+[0]*917,[0]*108+[1]*12+[0]*905,[0]*120+[1]*12+[0]*893,[0]*132+[1]*12+[0]*881,[0]*144+[1]*12+[0]*869,[0]*156+[1]*12+[0]*857,[0]*168+[1]*12+[0]*845,[0]*180+[1]*12+[0]*833,[0]*192+[1]*24+[0]*809,[0]*216+[1]*24+[0]*785,[0]*240+[1]*24+[0]*761,[0]*264+[1]*24+[0]*737,[0]*288+[1]*24+[0]*713,[0]*312+[1]*24+[0]*689,[0]*336+[1]*24+[0]*665,[0]*360+[1]*24+[0]*641,[0]*384+[1]*48+[0]*593,[0]*432+[1]*48+[0]*545,[0]*480+[1]*48+[0]*497,[0]*528+[1]*48+[0]*449,[0]*576+[1]*48+[0]*401,[0]*624+[1]*48+[0]*353,[0]*672+[1]*48+[0]*305,[0]*720+[1]*48+[0]*257,[0]*768+[1]*128+[0]*129,[0]*896+[1]*129])
 
 class BandSplit(Module):
@@ -196,14 +207,11 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 
 	Mathematics
 	-----------
-	multi-resolution loss : equation
-	```
+	multi-resolution loss : equation ```
 		Let y ≜ `target_sel`, ŷ ≜ `recon_audio`, W ≜ `multi_stft['window_sizes']`,
 			α ≜ `multi_stft['loss_weight']`
 
-		L_time = ‖ŷ − y‖₁
-		L_stft = ∑_{w ∈ W} ‖STFT_w(ŷ) − STFT_w(y)‖₁
-		L_total = L_time + α · L_stft
+		L_time = ‖ŷ − y‖₁ L_stft = ∑_{w ∈ W} ‖STFT_w(ŷ) − STFT_w(y)‖₁ L_total = L_time + α · L_stft
 
 		where  L_time ≜ `loss`,  L_stft ≜ `multi_stft_resolution_loss`,
 			STFT_w(·) ≜ `torch.stft` for window size w,  L_total ≜ `total_loss`
@@ -229,8 +237,8 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 	----------
 	[1] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation with
 		Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
-	[2] Wang, J.-C., Lu, W.-T., Won, M., Choi, K., & Song, X. (2024). Mel-RoFormer for Vocal
-		Separation and Vocal Melody Transcription. https://arxiv.org/abs/2409.04702
+	[2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
+		Transcription https://arxiv.org/abs/2409.04702
 	[3] hunterFormsBS.bandSplitRotator.BandSplitRotator
 
 	[4] hunterFormsBS.bs_roformer.BSRoformer
@@ -323,9 +331,8 @@ class MaskEstimator(Module):
 	----------
 	[1] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation
 		with Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
-	[2] Wang, J.-C., Lu, W.-T., Chen, J., Won, M., Choi, K., & Song, X. (2024).
-		Mel-RoFormer for Vocal Separation and Vocal Melody Transcription.
-		https://arxiv.org/abs/2409.04702
+	[2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
+		Transcription https://arxiv.org/abs/2409.04702
 	[3] hunterFormsBS.bandSplitRotator.BandSplitRotator
 
 	[4] hunterFormsBS.bandSplit.MLP
@@ -450,9 +457,8 @@ class MaskEstimator(Module):
 		----------
 		[1] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation
 			with Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
-		[2] Wang, J.-C., Lu, W.-T., Chen, J., Won, M., Choi, K., & Song, X. (2024).
-			Mel-RoFormer for Vocal Separation and Vocal Melody Transcription.
-			https://arxiv.org/abs/2409.04702
+		[2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
+			Transcription https://arxiv.org/abs/2409.04702
 		[3] hunterFormsBS.bandSplitRotator.BandSplitRotator
 
 		[4] Zhang, B., & Sennrich, R. (2019). Root Mean Square Layer Normalization.
@@ -538,9 +544,8 @@ def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1
 
 	[2] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation
 		with Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
-	[3] Wang, J.-C., Lu, W.-T., Chen, J., Won, M., Choi, K., & Song, X. (2024).
-		Mel-RoFormer for Vocal Separation and Vocal Melody Transcription.
-		https://arxiv.org/abs/2409.04702
+	[3] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
+		Transcription https://arxiv.org/abs/2409.04702
 	"""
 	dim_hidden = default(dim_hidden, dim_in)
 

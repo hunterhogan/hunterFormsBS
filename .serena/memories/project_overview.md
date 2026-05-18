@@ -2,12 +2,15 @@
 - Python package under `src/hunterFormsBS` for typed PyTorch audio / music source-separation models.
 - Packaging facts from `pyproject.toml`: Python `>=3.12`, build backend `uv_build`, typed package (`Typing :: Typed`).
 - Main runtime dependencies include `torch`, `einops`, `pope-pytorch`, `rotary-embedding-torch`, and `torch-einops-kit`.
-- Top-level exports in `src/hunterFormsBS/__init__.py`: `BandSplitRotator`.
-- Key modules:
-  - `attend.py`: attention and transformer building blocks.
-  - `bandSplit.py`: `BandSplit`, `MaskEstimator`, `lossComputation`, and `DEFAULT_FREQS_PER_BANDS`.
-  - `bandSplitRotator.py`: `BandSplitRotator` class.
-  - `bs_roformer.py` / `mel_band_roformer.py`: compatibility-oriented model modules.
-  - `*_experimental.py`: experimental variants.
-  - `theTypes.py`: typed config / helper classes.
-- README includes a migration note about `mask_estimator_depth` when loading checkpoints created with older `BSRoFormer` configs.
+- Public package export in `src/hunterFormsBS/__init__.py`: `BandSplitRotator`. `BSRoformer` and `MelBandRoformer` remain available from their submodules as transition / compatibility classes.
+- Current converged architecture:
+  - `bandSplitRotator.py`: unified `BandSplitRotator` separator for BS-style non-overlapping bands, mel-band layouts, and custom band layouts. Its constructor exposes downstream options and passes them through with stable parameter identifiers.
+  - `bs_roformer.py` / `mel_band_roformer.py`: stable transition modules with familiar APIs and defaults; former experimental options have been integrated into these classes and `BandSplitRotator`.
+  - `attend.py`: shared `Attend`, `Attention`, `FeedForward`, and `Transformer` building blocks. `LinearAttention` has been removed; `linear_attn` / `linear_transformer_depth` are compatibility flags only.
+  - `bandSplit.py`: `BandSplit`, `MaskEstimator`, `lossComputation`, `DEFAULT_FREQS_PER_BANDS`, and mel-band default mask data.
+  - `theTypes.py`: typed config helpers using clearer names such as `ParametersAttention`, `ParametersComputeLoss`, `ParametersSTFT`, `ParametersTransformer`, and `FlashAttentionConfig`.
+  - `make_static_mask_filter_bank.py`: helper module for generating paste-ready static mask filter-bank tensors.
+  - `bs_roformerUNWA.py`: retained reference / ported variant, not the primary public path.
+- Removed modules: `attend_experimental.py`, `bs_roformer_experimental.py`, and `mel_band_roformer_experimental.py`; do not treat `*_experimental.py` as live package modules.
+- Optional `sage_attention=True` requests the separately installed `thu-ml/SageAttention` backend; this repo does not install `SageAttention` automatically.
+- README includes migration help for `mask_estimator_depth` when loading older `BSRoFormer` configs / checkpoints.

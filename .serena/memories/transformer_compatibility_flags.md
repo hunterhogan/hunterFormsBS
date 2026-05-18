@@ -1,0 +1,5 @@
+- In `src/hunterFormsBS/theTypes.py`, document `ParametersTransformer.linear_attn` as a legacy compatibility field.
+- Wrapper parameters such as `linear_transformer_depth` may still be converted to the downstream `linear_attn` flag for older configs, but current `src/hunterFormsBS/attend.py` `Transformer.__init__` ignores `linear_attn` and always builds `Attention` + `FeedForward` layers.
+- `LinearAttention` has been removed from the package; do not reintroduce it just to satisfy compatibility flags.
+- Document `sage_attention` as optional and manually installed, matching the `thu-ml/SageAttention` repository.
+- Keep backend flag naming stable across `BandSplitRotator`, `BSRoformer`, `MelBandRoformer`, `Transformer`, `Attention`, and `Attend`: `flash_attn`, `sage_attention`, `attn_dropout`, `ff_dropout`, and `scale` should not be renamed in transit.

@@ -1,36 +1,45 @@
+# ruff: noqa: PLC0415
 """Generate static `mask_filter_bank` source for custom band layouts.
 
 You can use this module to print paste-ready Python source that defines a `torch.bool`
-`mask_filter_bank` `Tensor` for `hunterFormsBS.bandSplitRotator.BandSplitRotator` [2] or any other
-`class` with a `mask_filter_bank` parameter [1]. The module is intentionally separate from the model
-code, imports `librosa` only inside `librosa_filters_mel` [4], and is meant for ad-hoc direct Python
-calls when a checkpoint uses a custom band layout.
+`mask_filter_bank` `Tensor` for `hunterFormsBS.bandSplitRotator.BandSplitRotator` [1],
+`hunterFormsBS.bs_roformer.BSRoformer` [2], `hunterFormsBS.mel_band_roformer.MelBandRoformer` [3],
+or any other `class` with a `mask_filter_bank` parameter. The module is intentionally separate from
+the model code and is meant for ad-hoc direct Python calls when a checkpoint uses a custom band
+layout. `librosa_filters_mel` imports `librosa` only when `librosa_filters_mel` runs, and
+`hunterFormsBS` does not depend on `librosa`, so install `librosa` yourself before calling
+`librosa_filters_mel` [4][5].
 
 This module does not install a command-line interface. Import the function you need from Python and
 call the function from a REPL, notebook, or one-off script. Most users never need this module because
 the package already bundles the common lucidrains-style mel-band split in
-`hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default` [3].
+`hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default` [6].
 
 Contents
 --------
 Functions
-    filter_bank_non_overlapping
-        Generate one static non-overlapping band split from contiguous band widths.
-    librosa_filters_mel
-        Generate one static mel-band band split with `librosa.filters.mel`.
-    print_static_mask
-        Print one paste-ready `torch.bool` assignment for `mask_filter_bank`.
+	filter_bank_non_overlapping
+		Generate one static non-overlapping band split from contiguous band widths.
+	librosa_filters_mel
+		Generate one static mel-band band split with `librosa.filters.mel`.
+	print_static_mask
+		Print one paste-ready `torch.bool` assignment for `mask_filter_bank`.
 
 References
 ----------
-[1] hunterFormsBS.mel_band_roformer.MelBandRoformer
+[1] hunterFormsBS.bandSplitRotator.BandSplitRotator
 
-[2] hunterFormsBS.bandSplitRotator.BandSplitRotator
+[2] hunterFormsBS.bs_roformer.BSRoformer
 
-[3] hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default
+[3] hunterFormsBS.mel_band_roformer.MelBandRoformer
 
 [4] librosa.filters.mel - librosa
-    https://librosa.org/doc/main/generated/librosa.filters.mel.html
+	https://librosa.org/doc/main/generated/librosa.filters.mel.html
+
+[5] Installation instructions - librosa
+	https://librosa.org/doc/main/install.html
+
+[6] hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default
 """
 
 from __future__ import annotations
@@ -93,12 +102,13 @@ def librosa_filters_mel(
 	"""Generate one static mel-band `mask_filter_bank` with `librosa.filters.mel` [1].
 
 	You can use this function to create one Boolean mel-band band-membership matrix and print one
-	paste-ready Python assignment through `print_static_mask` [2]. The function keeps `librosa`
-	optional for the package because the `librosa` import happens only when `librosa_filters_mel`
-	runs. The function also forces `mask_filter_bank[0, 0] = True` before printing so the DC bin
-	remains explicitly covered, matching the packaged default mask family [3]. With
+	paste-ready Python assignment through `print_static_mask` [2]. Install `librosa` yourself before
+	calling `librosa_filters_mel`, because `hunterFormsBS` does not declare `librosa` as a runtime
+	dependency and `librosa_filters_mel` imports `librosa` only when `librosa_filters_mel` runs
+	[1][3]. The function also forces `mask_filter_bank[0, 0] = True` before printing so the DC bin
+	remains explicitly covered, matching the packaged default mask family [4]. With
 	`sample_rate=44100`, `stft_n_fft=2048`, and `num_bands=60`, the Boolean mask matches the common
-	bundled mel-band default [3].
+	bundled mel-band default [4].
 
 	Parameters
 	----------
@@ -126,11 +136,13 @@ def librosa_filters_mel(
 		The function writes one `torch.tensor(dtype=torch.bool, data=...)` assignment that you can
 		paste into Python source as a static `mask_filter_bank` definition.
 
-	Dependency Behavior
+	Optional Dependency
 	-------------------
-	optional dependency import : behavior
-		`librosa` is imported only inside `librosa_filters_mel`. Importing
-		`hunterFormsBS.make_static_mask_filter_bank` does not require `librosa`.
+	`librosa` installation : requirement
+		`hunterFormsBS` does not depend on `librosa`. Importing
+		`hunterFormsBS.make_static_mask_filter_bank` does not require `librosa`, but calling
+		`librosa_filters_mel` does. Install `librosa` yourself first, for example with
+		`pip install librosa` [3].
 
 	Parameter Aliases
 	-----------------
@@ -149,16 +161,19 @@ def librosa_filters_mel(
 		https://librosa.org/doc/main/generated/librosa.filters.mel.html
 	[2] hunterFormsBS.make_static_mask_filter_bank.print_static_mask
 
-	[3] hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default
+	[3] Installation instructions - librosa
+		https://librosa.org/doc/main/install.html
+
+	[4] hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default
 	"""
-	from librosa import filters  # noqa: PLC0415
+	from librosa import filters  # pyright: ignore[reportUnknownVariableType, reportMissingImports] # ty:ignore[unresolved-import]
 	sr = raiseIfNone(sr or sample_rate)
 	n_fft = raiseIfNone(n_fft or stft_n_fft)
 	n_mels = raiseIfNone(n_mels or num_bands)
-	filter_bank: numpy.typing.NDArray[numpy.float32] = filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, **keywordArguments)
-	mask_filter_bank: numpy.typing.NDArray[numpy.bool] = filter_bank > 0
+	filter_bank: numpy.typing.NDArray[numpy.float32] = filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, **keywordArguments) # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+	mask_filter_bank: numpy.typing.NDArray[numpy.bool] = filter_bank > 0 # pyright: ignore[reportUnknownVariableType]
 	mask_filter_bank[0, 0] = True
-	print_static_mask(mask_filter_bank)
+	print_static_mask(mask_filter_bank) # pyright: ignore[reportUnknownArgumentType]
 
 def print_static_mask(mask_filter_bank: numpy.typing.NDArray[numpy.bool]) -> None:
 	"""Print one paste-ready static `mask_filter_bank` assignment.
