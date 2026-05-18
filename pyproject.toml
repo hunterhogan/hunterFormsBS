@@ -6,11 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "CC-BY-NC-4.0"
 license-files = ["LICEN[CS]E*"]
-authors = [
-  { name = "Hunter Hogan", email = "HunterHogan@pm.me" },
-  { name = "Phil Wang", email = "lucidrains@gmail.com" },
-  { name = "Roman Solovyev (ZFTurbo)" },
-]
+authors = [{ name = "Hunter Hogan", email = "HunterHogan@pm.me" }]
 maintainers = [{ name = "Hunter Hogan", email = "HunterHogan@pm.me" }]
 keywords = [
   "artificial intelligence",
@@ -32,6 +28,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
+  "Z0Z_tools",
   "einops>=0.8.2",
   "hunterMakesPy",
   "hyper-connections>=0.4.10",
@@ -42,7 +39,6 @@ dependencies = [
   "rotary-embedding-torch",
   "torch>=2.0.0",
   "torch-einops-kit",
-  "Z0Z_tools",
 ]
 
 [project.urls]
@@ -54,6 +50,7 @@ Issues = "https://github.com/hunterhogan/hunterFormsBS/issues"
 Repository = "https://github.com/hunterhogan/hunterFormsBS.git"
 
 [dependency-groups]
+pytorch = ["torch==2.10.0", "torchaudio==2.10.0"]
 testing = ["pytest"]
 
 [build-system]
@@ -65,12 +62,16 @@ filenameCitationDOTcff = "CITATION.cff"
 pathFilenameCitationSSOT = "citations/CITATION.cff"
 
 [tool.uv]
+build-backend = { module-name = "hunterFormsBS", module-root = "src" }
 default-groups = ["testing"]
 
-[tool.uv.sources]
-rotary-embedding-torch = { git = "https://github.com/hunterhogan/rotary-embedding-torch.git" }
-pope-pytorch = { git = "https://github.com/hunterhogan/PoPE-pytorch.git" }
+[[tool.uv.index]]
+explicit = true
+name = "indexPytorch"
+url = "https://download.pytorch.org/whl/cu128"
 
-[tool.uv.build-backend]
-module-name = "hunterFormsBS"
-module-root = "src"
+[tool.uv.sources]
+pope-pytorch = { git = "https://github.com/hunterhogan/PoPE-pytorch.git" }
+rotary-embedding-torch = { git = "https://github.com/hunterhogan/rotary-embedding-torch.git" }
+torch = { index = "indexPytorch", group = "pytorch" }
+torchaudio = { index = "indexPytorch", group = "pytorch" }
