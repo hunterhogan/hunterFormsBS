@@ -1,16 +1,4 @@
-# https://huggingface.co/pcunwa/BS-Roformer-HyperACE/commit/76d35e479166ceb7dc07a457a37760de4f7091c1
-# ty:ignore[call-non-callable]
-# pyright: reportUnusedVariable=false
-# pyright: reportArgumentType=false
-# pyright: reportGeneralTypeIssues=false
-# pyright: reportMissingTypeArgument=false
-# pyright: reportCallIssue=false
-# pyright: reportMissingParameterType=false
-# pyright: reportUnknownArgumentType=false
-# pyright: reportUnknownMemberType=false
-# pyright: reportUnknownParameterType=false
-# pyright: reportUnknownVariableType=false
-# ruff: noqa: D101, D102, D103, ANN001, ANN201, ANN204, RET504, B007, E741, EM102, FBT002, RUF007, RUF059, S101, TRY003
+# ruff: noqa: D101, D102, D103, E741
 """Use band-splitting, static mask-filter-bank, and training-loss utilities for source separation.
 
 You can use this module to build the frequency-domain front end and the per-stem output heads shared
@@ -58,11 +46,12 @@ from __future__ import annotations
 
 from einops import rearrange
 from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersSTFT
+from more_itertools import loops
 from torch import nn, Tensor, tensor
 from torch.nn import Module, ModuleList
 from torch_einops_kit import default
 from torch_einops_kit.scaleValues import RMSNorm
-from typing import Literal, overload, TYPE_CHECKING
+from typing import cast, Literal, overload, TYPE_CHECKING
 import torch
 import torch.nn.functional as F
 
@@ -76,7 +65,7 @@ mask_filter_bank_mel_band_default: Tensor = tensor(dtype=torch.bool, data=[[1]*7
 You can use `mask_filter_bank_mel_band_default` when the common `sample_rate=44100`,
 `stft_n_fft=2048`, and `num_bands=60` layout should use one packaged static tensor.
 """
-mask_filter_bank_bs_roformer_default: torch.Tensor = torch.tensor(dtype=torch.bool, data=[[1,1]+[0]*1023,[0,0,1,1]+[0]*1021,[0]*4+[1,1]+[0]*1019,[0]*6+[1,1]+[0]*1017,[0]*8+[1,1]+[0]*1015,[0]*10+[1,1]+[0]*1013,[0]*12+[1,1]+[0]*1011,[0]*14+[1,1]+[0]*1009,[0]*16+[1,1]+[0]*1007,[0]*18+[1,1]+[0]*1005,[0]*20+[1,1]+[0]*1003,[0]*22+[1,1]+[0]*1001,[0]*24+[1,1]+[0]*999,[0]*26+[1,1]+[0]*997,[0]*28+[1,1]+[0]*995,[0]*30+[1,1]+[0]*993,[0]*32+[1,1]+[0]*991,[0]*34+[1,1]+[0]*989,[0]*36+[1,1]+[0]*987,[0]*38+[1,1]+[0]*985,[0]*40+[1,1]+[0]*983,[0]*42+[1,1]+[0]*981,[0]*44+[1,1]+[0]*979,[0]*46+[1,1]+[0]*977,[0]*48+[1]*4+[0]*973,[0]*52+[1]*4+[0]*969,[0]*56+[1]*4+[0]*965,[0]*60+[1]*4+[0]*961,[0]*64+[1]*4+[0]*957,[0]*68+[1]*4+[0]*953,[0]*72+[1]*4+[0]*949,[0]*76+[1]*4+[0]*945,[0]*80+[1]*4+[0]*941,[0]*84+[1]*4+[0]*937,[0]*88+[1]*4+[0]*933,[0]*92+[1]*4+[0]*929,[0]*96+[1]*12+[0]*917,[0]*108+[1]*12+[0]*905,[0]*120+[1]*12+[0]*893,[0]*132+[1]*12+[0]*881,[0]*144+[1]*12+[0]*869,[0]*156+[1]*12+[0]*857,[0]*168+[1]*12+[0]*845,[0]*180+[1]*12+[0]*833,[0]*192+[1]*24+[0]*809,[0]*216+[1]*24+[0]*785,[0]*240+[1]*24+[0]*761,[0]*264+[1]*24+[0]*737,[0]*288+[1]*24+[0]*713,[0]*312+[1]*24+[0]*689,[0]*336+[1]*24+[0]*665,[0]*360+[1]*24+[0]*641,[0]*384+[1]*48+[0]*593,[0]*432+[1]*48+[0]*545,[0]*480+[1]*48+[0]*497,[0]*528+[1]*48+[0]*449,[0]*576+[1]*48+[0]*401,[0]*624+[1]*48+[0]*353,[0]*672+[1]*48+[0]*305,[0]*720+[1]*48+[0]*257,[0]*768+[1]*128+[0]*129,[0]*896+[1]*129])
+mask_filter_bank_bs_roformer_default: Tensor = tensor(dtype=torch.bool, data=[[1,1]+[0]*1023,[0,0,1,1]+[0]*1021,[0]*4+[1,1]+[0]*1019,[0]*6+[1,1]+[0]*1017,[0]*8+[1,1]+[0]*1015,[0]*10+[1,1]+[0]*1013,[0]*12+[1,1]+[0]*1011,[0]*14+[1,1]+[0]*1009,[0]*16+[1,1]+[0]*1007,[0]*18+[1,1]+[0]*1005,[0]*20+[1,1]+[0]*1003,[0]*22+[1,1]+[0]*1001,[0]*24+[1,1]+[0]*999,[0]*26+[1,1]+[0]*997,[0]*28+[1,1]+[0]*995,[0]*30+[1,1]+[0]*993,[0]*32+[1,1]+[0]*991,[0]*34+[1,1]+[0]*989,[0]*36+[1,1]+[0]*987,[0]*38+[1,1]+[0]*985,[0]*40+[1,1]+[0]*983,[0]*42+[1,1]+[0]*981,[0]*44+[1,1]+[0]*979,[0]*46+[1,1]+[0]*977,[0]*48+[1]*4+[0]*973,[0]*52+[1]*4+[0]*969,[0]*56+[1]*4+[0]*965,[0]*60+[1]*4+[0]*961,[0]*64+[1]*4+[0]*957,[0]*68+[1]*4+[0]*953,[0]*72+[1]*4+[0]*949,[0]*76+[1]*4+[0]*945,[0]*80+[1]*4+[0]*941,[0]*84+[1]*4+[0]*937,[0]*88+[1]*4+[0]*933,[0]*92+[1]*4+[0]*929,[0]*96+[1]*12+[0]*917,[0]*108+[1]*12+[0]*905,[0]*120+[1]*12+[0]*893,[0]*132+[1]*12+[0]*881,[0]*144+[1]*12+[0]*869,[0]*156+[1]*12+[0]*857,[0]*168+[1]*12+[0]*845,[0]*180+[1]*12+[0]*833,[0]*192+[1]*24+[0]*809,[0]*216+[1]*24+[0]*785,[0]*240+[1]*24+[0]*761,[0]*264+[1]*24+[0]*737,[0]*288+[1]*24+[0]*713,[0]*312+[1]*24+[0]*689,[0]*336+[1]*24+[0]*665,[0]*360+[1]*24+[0]*641,[0]*384+[1]*48+[0]*593,[0]*432+[1]*48+[0]*545,[0]*480+[1]*48+[0]*497,[0]*528+[1]*48+[0]*449,[0]*576+[1]*48+[0]*401,[0]*624+[1]*48+[0]*353,[0]*672+[1]*48+[0]*305,[0]*720+[1]*48+[0]*257,[0]*768+[1]*128+[0]*129,[0]*896+[1]*129])
 
 class BandSplit(Module):
 	"""Project band slices to a shared feature width.
@@ -368,35 +357,35 @@ class MaskEstimator(Module):
 		mlp_expansion_factor: int = 4,
 		activation: type[nn.Module] = nn.Tanh,
 		segm_out_bins: int | None = None,
-		segm_out_channels=4,
-		segm_base_channels=64,
-		segm_base_depth=2,
-		segm_num_hyperedges=32,
-		segm_num_heads=8,
+		segm_out_channels: int = 4,
+		segm_base_channels: int = 64,
+		segm_base_depth: int = 2,
+		segm_num_hyperedges: int = 32,
+		segm_num_heads: int = 8,
 		segm_backbone_channels: tuple[int, int, int, int, int] | None = None,
-		segm_hyperace_k=2,
-		segm_hyperace_l=1,
-		segm_hyperace_c_h=0.5,
-		segm_hyperace_c_l=0.25,
-		segm_hyperace_c3ah_expansion=1.0,
-		segm_hyperace_low_order_depth=1,
-		segm_hyperace_low_order_kernel=3,
-		segm_hyperace_low_order_expansion=1.0,
+		segm_hyperace_k: int = 2,
+		segm_hyperace_l: int = 1,
+		segm_hyperace_c_h: float = 0.5,
+		segm_hyperace_c_l: float = 0.25,
+		segm_hyperace_c3ah_expansion: float = 1.0,
+		segm_hyperace_low_order_depth: int = 1,
+		segm_hyperace_low_order_kernel: int = 3,
+		segm_hyperace_low_order_expansion: float = 1.0,
 		segm_hyperace_out_channels: int | None = None,
 		segm_decoder_channels: list[int] | tuple[int, int, int, int] | None = None,
-		segm_decoder_block_depth=1,
-		segm_decoder_block_kernel=3,
-		segm_decoder_block_expansion=0.5,
+		segm_decoder_block_depth: int = 1,
+		segm_decoder_block_kernel: int = 3,
+		segm_decoder_block_expansion: float = 0.5,
 		segm_upsample_scales: tuple[int, int, int, int] = (2, 2, 2, 2),
-		segm_upsample_tfc_tdf_depth=2,
-		segm_upsample_tfc_tdf_bn=4,
-		segm_activation=nn.SiLU,
-		segm_norm_eps=1e-8,
-		segm_norm_affine=True,
-		segm_conv_bias=False,
-		segm_linear_bias=False,
-		use_hyperACE=False,
-	):
+		segm_upsample_tfc_tdf_depth: int = 2,
+		segm_upsample_tfc_tdf_bn: int = 4,
+		segm_activation: type[nn.Module] = nn.SiLU,
+		segm_norm_eps: float = 1e-8,
+		segm_norm_affine: bool = True,
+		segm_conv_bias: bool = False,
+		segm_linear_bias: bool = False,
+		use_hyperACE: bool = False,
+	) -> None:
 		"""Configure one mask-projection head per band.
 
 		You can use `__init__` to specify how many band heads `MaskEstimator` builds, how wide each
@@ -434,6 +423,7 @@ class MaskEstimator(Module):
 			self.to_freqs.append(mlp)
 
 		if self.use_hyperACE:
+			# https://huggingface.co/pcunwa/BS-Roformer-HyperACE/commit/76d35e479166ceb7dc07a457a37760de4f7091c1
 			segm_out_bins = sum(dim_inputs) // segm_out_channels if segm_out_bins is None else segm_out_bins
 			self.segm = SegmModel(
 				in_bands=len(dim_inputs),
@@ -658,7 +648,7 @@ def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1
 	net: list[nn.Module] = []
 	dims: tuple[int, ...] = (dim_in, *((dim_hidden,) * depth), dim_out)
 
-	for ind, (layer_dim_in, layer_dim_out) in enumerate(zip(dims[:-1], dims[1:], strict=True)):
+	for ind, (layer_dim_in, layer_dim_out) in enumerate(zip(dims[:-1], dims[1:], strict=True)):  # noqa: RUF007
 		is_last: bool = ind == (len(dims) - 2)
 
 		net.append(nn.Linear(layer_dim_in, layer_dim_out))
@@ -671,49 +661,68 @@ def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1
 	return nn.Sequential(*net)
 
 class Conv(nn.Module):
-	def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, bias=False):
+	def __init__(self, c1: int, c2: int, k: int = 1, s: int = 1, p: int | None = None, g: int = 1
+			, activation: type[nn.Module] = nn.SiLU
+			, norm_eps: float = 1e-8
+			, *
+			, act: bool = True
+			, norm_affine: bool = True, bias: bool = False) -> None:
 		super().__init__()
 		self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=bias)
 		self.bn = nn.InstanceNorm2d(c2, affine=norm_affine, eps=norm_eps)
-		self.act = activation() if act else nn.Identity()
+		self.act: nn.Module = activation() if act else nn.Identity()
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> Tensor:
 		return self.act(self.bn(self.conv(x)))
 
-def autopad(k, p=None):
+@overload
+def autopad(k: int, p: int | None = None) -> int:...
+@overload
+def autopad(k: list[int], p: list[int] | None = None) -> list[int]:...
+def autopad(k: int | list[int], p: int | list[int] | None = None) -> int | list[int]:
 	if p is None:
 		p = k // 2 if isinstance(k, int) else [x // 2 for x in k]
 	return p
 
 class DSConv(nn.Module):
-	def __init__(self, c1, c2, k=3, s=1, p=None, act=True, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, bias=False):
+	def __init__(self, c1: int, c2: int, k: int = 3, s: int | tuple[int, int] = 1, p: int | None = None
+			, activation: type[nn.Module] = nn.SiLU
+			, norm_eps: float = 1e-8
+			, *
+			, act: bool = True
+			, norm_affine: bool = True, bias: bool = False) -> None:
 		super().__init__()
 		self.dwconv = nn.Conv2d(c1, c1, k, s, autopad(k, p), groups=c1, bias=bias)
 		self.pwconv = nn.Conv2d(c1, c2, 1, 1, 0, bias=bias)
 		self.bn = nn.InstanceNorm2d(c2, affine=norm_affine, eps=norm_eps)
-		self.act = activation() if act else nn.Identity()
+		self.act: nn.Module = activation() if act else nn.Identity()
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> Tensor:
 		return self.act(self.bn(self.pwconv(self.dwconv(x))))
 
 class DS_Bottleneck(nn.Module):
-	def __init__(self, c1, c2, k=3, shortcut=True, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, bias=False):
+	def __init__(self, c1: int, c2: int, k: int = 3
+			, activation: type[nn.Module] = nn.SiLU
+			, norm_eps: float = 1e-8
+			, *
+			, shortcut: bool = True
+			, norm_affine: bool = True, bias: bool = False) -> None:
 		super().__init__()
-		c_ = c1
-		self.dsconv1 = DSConv(c1, c_, k=3, s=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
-		self.dsconv2 = DSConv(c_, c2, k=k, s=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
-		self.shortcut = shortcut and c1 == c2
+		c_: int = c1
+		self.dsconv1: DSConv = DSConv(c1, c_, k=3, s=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.dsconv2: DSConv = DSConv(c_, c2, k=k, s=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.shortcut: bool = shortcut and c1 == c2
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> Tensor:
 		return x + self.dsconv2(self.dsconv1(x)) if self.shortcut else self.dsconv2(self.dsconv1(x))
 
 class DS_C3k(nn.Module):
-	def __init__(self, c1, c2, n=1, k=3, e=0.5, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, bias=False):
+	def __init__(self, c1: int, c2: int, n: int = 1, k: int = 3, e: float = 0.5, activation: type[nn.Module] = nn.SiLU, norm_eps: float = 1e-8, *, norm_affine: bool = True, bias: bool = False) -> None:
 		super().__init__()
 		c_ = int(c2 * e)
-		self.cv1 = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
-		self.cv2 = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
-		self.cv3 = Conv(2 * c_, c2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.cv1: Conv = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.cv2: Conv = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.cv3: Conv = Conv(2 * c_, c2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
 		self.m = nn.Sequential(
 			*[
 				DS_Bottleneck(c_, c_, k=k, shortcut=True, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
@@ -721,43 +730,43 @@ class DS_C3k(nn.Module):
 			]
 		)
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> Tensor:
 		return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
 
 class DS_C3k2(nn.Module):
-	def __init__(self, c1, c2, n=1, k=3, e=0.5, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, bias=False):
+	def __init__(self, c1: int, c2: int, n: int = 1, k: int = 3, e: float = 0.5, activation: type[nn.Module] = nn.SiLU, norm_eps: float = 1e-8, *, norm_affine: bool = True, bias: bool = False) -> None:
 		super().__init__()
 		c_ = int(c2 * e)
-		self.cv1 = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
-		self.m = DS_C3k(c_, c_, n=n, k=k, e=1.0, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
-		self.cv2 = Conv(c_, c2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.cv1: Conv = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.m: DS_C3k = DS_C3k(c_, c_, n=n, k=k, e=1.0, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
+		self.cv2: Conv = Conv(c_, c2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=bias)
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> Tensor:
 		x_ = self.cv1(x)
 		x_ = self.m(x_)
 		return self.cv2(x_)
 
 class AdaptiveHyperedgeGeneration(nn.Module):
-	def __init__(self, in_channels, num_hyperedges, num_heads=8, linear_bias=False):
+	def __init__(self, in_channels: int, num_hyperedges: int, num_heads: int = 8, *, linear_bias: bool = False) -> None:
 		super().__init__()
-		self.num_hyperedges = num_hyperedges
-		self.num_heads = num_heads
-		self.head_dim = in_channels // num_heads
+		self.num_hyperedges: int = num_hyperedges
+		self.num_heads: int = num_heads
+		self.head_dim: int = in_channels // num_heads
 
-		self.global_proto = nn.Parameter(torch.randn(num_hyperedges, in_channels))
+		self.global_proto: nn.Parameter = nn.Parameter(torch.randn(num_hyperedges, in_channels))
 
-		self.context_mapper = nn.Linear(2 * in_channels, num_hyperedges * in_channels, bias=linear_bias)
+		self.context_mapper: nn.Linear = nn.Linear(2 * in_channels, num_hyperedges * in_channels, bias=linear_bias)
 
-		self.query_proj = nn.Linear(in_channels, in_channels, bias=linear_bias)
+		self.query_proj: nn.Linear = nn.Linear(in_channels, in_channels, bias=linear_bias)
 
-		self.scale = self.head_dim**-0.5
+		self.scale: float = self.head_dim**-0.5
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> Tensor:
 		B, N, C = x.shape
 
-		f_avg = F.adaptive_avg_pool1d(x.permute(0, 2, 1), 1).squeeze(-1)
-		f_max = F.adaptive_max_pool1d(x.permute(0, 2, 1), 1).squeeze(-1)
-		f_ctx = torch.cat((f_avg, f_max), dim=1)
+		f_avg: Tensor = F.adaptive_avg_pool1d(x.permute(0, 2, 1), 1).squeeze(-1)
+		f_max: Tensor = F.adaptive_max_pool1d(x.permute(0, 2, 1), 1).squeeze(-1)
+		f_ctx: Tensor = torch.cat((f_avg, f_max), dim=1)
 
 		delta_P = self.context_mapper(f_ctx).view(B, self.num_hyperedges, C)
 		P = self.global_proto.unsqueeze(0) + delta_P
@@ -772,65 +781,64 @@ class AdaptiveHyperedgeGeneration(nn.Module):
 
 		s_bar = sim.mean(dim=1)
 
-		A = F.softmax(s_bar.permute(0, 2, 1), dim=-1)
+		A: Tensor = F.softmax(s_bar.permute(0, 2, 1), dim=-1)
 
 		return A
 
 class HypergraphConvolution(nn.Module):
-	def __init__(self, in_channels, out_channels, activation=nn.SiLU, linear_bias=False):
+	def __init__(self, in_channels: int, out_channels: int, activation: type[nn.Module] = nn.SiLU, *, linear_bias: bool = False) -> None:
 		super().__init__()
 		self.W_e = nn.Linear(in_channels, in_channels, bias=linear_bias)
 		self.W_v = nn.Linear(in_channels, out_channels, bias=linear_bias)
-		self.act = activation()
+		self.act: nn.Module = activation()
 
-	def forward(self, x, A):
-		f_m = torch.bmm(A, x)
+	def forward(self, x: Tensor, A: Tensor) -> Tensor:
+		f_m: Tensor = torch.bmm(A, x)
 		f_m = self.act(self.W_e(f_m))
 
-		x_out = torch.bmm(A.transpose(1, 2), f_m)
+		x_out: Tensor = torch.bmm(A.transpose(1, 2), f_m)
 		x_out = self.act(self.W_v(x_out))
 
 		return x + x_out
 
 class AdaptiveHypergraphComputation(nn.Module):
-	def __init__(self, in_channels, out_channels, num_hyperedges=8, num_heads=8, activation=nn.SiLU, linear_bias=False):
+	def __init__(self, in_channels: int, out_channels: int, num_hyperedges: int = 8, num_heads: int = 8, activation: type[nn.Module] = nn.SiLU, *, linear_bias: bool = False) -> None:
 		super().__init__()
-		self.adaptive_hyperedge_gen = AdaptiveHyperedgeGeneration(in_channels, num_hyperedges, num_heads, linear_bias=linear_bias)
-		self.hypergraph_conv = HypergraphConvolution(in_channels, out_channels, activation=activation, linear_bias=linear_bias)
+		self.adaptive_hyperedge_gen: AdaptiveHyperedgeGeneration = AdaptiveHyperedgeGeneration(in_channels, num_hyperedges, num_heads, linear_bias=linear_bias)
+		self.hypergraph_conv: HypergraphConvolution = HypergraphConvolution(in_channels, out_channels, activation=activation, linear_bias=linear_bias)
 
-	def forward(self, x):
-		B, C, H, W = x.shape
-		x_flat = x.flatten(2).permute(0, 2, 1)
+	def forward(self, x: Tensor) -> Tensor:
+		B, _C, H, W = x.shape
+		x_flat: Tensor = x.flatten(2).permute(0, 2, 1)
 
 		A = self.adaptive_hyperedge_gen(x_flat)
 
 		x_out_flat = self.hypergraph_conv(x_flat, A)
 
-		x_out = x_out_flat.permute(0, 2, 1).view(B, -1, H, W)
-		return x_out
+		return x_out_flat.permute(0, 2, 1).view(B, -1, H, W)
 
 class C3AH(nn.Module):
 	def __init__(
 		self,
-		c1,
-		c2,
-		num_hyperedges=8,
-		num_heads=8,
-		e=0.5,
-		activation=nn.SiLU,
-		norm_eps=1e-8,
-		norm_affine=True,
-		conv_bias=False,
-		linear_bias=False,
-	):
+		c1: int,
+		c2: int,
+		num_hyperedges: int = 8,
+		num_heads: int = 8,
+		e: float = 0.5,
+		activation: type[nn.Module] = nn.SiLU,
+		norm_eps: float = 1e-8,
+		*, norm_affine: bool = True,
+		conv_bias: bool = False,
+		linear_bias: bool = False,
+	) -> None:
 		super().__init__()
 		c_ = int(c1 * e)
-		self.cv1 = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
-		self.cv2 = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
-		self.ahc = AdaptiveHypergraphComputation(c_, c_, num_hyperedges, num_heads, activation=activation, linear_bias=linear_bias)
-		self.cv3 = Conv(2 * c_, c2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.cv1: Conv = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.cv2: Conv = Conv(c1, c_, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.ahc: AdaptiveHypergraphComputation = AdaptiveHypergraphComputation(c_, c_, num_hyperedges, num_heads, activation=activation, linear_bias=linear_bias)
+		self.cv3: Conv = Conv(2 * c_, c2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> Tensor:
 		x_lateral = self.cv1(x)
 		x_ahc = self.ahc(self.cv2(x))
 		return self.cv3(torch.cat((x_ahc, x_lateral), dim=1))
@@ -840,35 +848,40 @@ class HyperACE(nn.Module):
 		self,
 		in_channels: list[int],
 		out_channels: int,
-		num_hyperedges=8,
-		num_heads=8,
-		k=2,
-		l=1,
-		c_h=0.5,
-		c_l=0.25,
-		c3ah_expansion=1.0,
-		low_order_depth=1,
-		low_order_kernel=3,
-		low_order_expansion=1.0,
-		activation=nn.SiLU,
-		norm_eps=1e-8,
-		norm_affine=True,
-		conv_bias=False,
-		linear_bias=False,
-	):
+		num_hyperedges: int = 8,
+		num_heads: int = 8,
+		k: int = 2,
+		l: int = 1,
+		c_h: float = 0.5,
+		c_l: float = 0.25,
+		c3ah_expansion: float = 1.0,
+		low_order_depth: int = 1,
+		low_order_kernel: int = 3,
+		low_order_expansion: float = 1.0,
+		activation: type[nn.Module] = nn.SiLU,
+		norm_eps: float = 1e-8,
+		*, norm_affine: bool = True,
+		conv_bias: bool = False,
+		linear_bias: bool = False,
+	) -> None:
 		super().__init__()
 
 		c2, c3, c4, c5 = in_channels
-		c_mid = c4
+		c_mid: int = c4
 
-		self.fuse_conv = Conv(
+		self.fuse_conv: Conv = Conv(
 			c2 + c3 + c4 + c5, c_mid, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias
 		)
 
 		self.c_h = int(c_mid * c_h)
 		self.c_l = int(c_mid * c_l)
-		self.c_s = c_mid - self.c_h - self.c_l
-		assert self.c_s > 0, 'Channel split error'
+		self.c_s: int = c_mid - self.c_h - self.c_l
+		if self.c_s <= 0:
+			message: str = (
+				f"I computed `{self.c_s = }`, indicative of a channel split problem, from `{c_mid = }`, `{c_h = }`, `{c_l = }`, "
+				f"`{self.c_h = }`, and `{self.c_l = }`, but I need `self.c_s` to be greater than 0."
+			)
+			raise ValueError(message)
 
 		self.high_order_branch = nn.ModuleList(
 			[
@@ -884,10 +897,10 @@ class HyperACE(nn.Module):
 					conv_bias=conv_bias,
 					linear_bias=linear_bias,
 				)
-				for _ in range(k)
+				for _index in loops(k)
 			]
 		)
-		self.high_order_fuse = Conv(
+		self.high_order_fuse: Conv = Conv(
 			self.c_h * k, self.c_h, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias
 		)
 
@@ -908,7 +921,7 @@ class HyperACE(nn.Module):
 			]
 		)
 
-		self.final_fuse = Conv(
+		self.final_fuse: Conv = Conv(
 			self.c_h + self.c_l + self.c_s,
 			out_channels,
 			1,
@@ -919,53 +932,55 @@ class HyperACE(nn.Module):
 			bias=conv_bias,
 		)
 
-	def forward(self, x: list[torch.Tensor]) -> torch.Tensor:
+	def forward(self, x: list[Tensor]) -> Tensor:
 		B2, B3, B4, B5 = x
 
-		B, _, H4, W4 = B4.shape
+		_B, _C, H4, W4 = B4.shape
 
-		B2_resized = F.interpolate(B2, size=(H4, W4), mode='bilinear', align_corners=False)
-		B3_resized = F.interpolate(B3, size=(H4, W4), mode='bilinear', align_corners=False)
-		B5_resized = F.interpolate(B5, size=(H4, W4), mode='bilinear', align_corners=False)
+		B2_resized: Tensor = F.interpolate(B2, size=(H4, W4), mode='bilinear', align_corners=False)
+		B3_resized: Tensor = F.interpolate(B3, size=(H4, W4), mode='bilinear', align_corners=False)
+		B5_resized: Tensor = F.interpolate(B5, size=(H4, W4), mode='bilinear', align_corners=False)
 
 		x_b = self.fuse_conv(torch.cat((B2_resized, B3_resized, B4, B5_resized), dim=1))
 
 		x_h, x_l, x_s = torch.split(x_b, [self.c_h, self.c_l, self.c_s], dim=1)
 
-		x_h_outs = [m(x_h) for m in self.high_order_branch]
+		x_h_outs: list[Tensor] = [m(x_h) for m in self.high_order_branch]
 		x_h_fused = self.high_order_fuse(torch.cat(x_h_outs, dim=1))
 
 		x_l_out = self.low_order_branch(x_l)
 
-		y = self.final_fuse(torch.cat((x_h_fused, x_l_out, x_s), dim=1))
-
-		return y
+		return self.final_fuse(torch.cat((x_h_fused, x_l_out, x_s), dim=1))
 
 class GatedFusion(nn.Module):
-	def __init__(self, in_channels):
+	def __init__(self, in_channels: int) -> None:
 		super().__init__()
 		self.gamma = nn.Parameter(torch.zeros(1, in_channels, 1, 1))
 
-	def forward(self, f_in, h):
+	def forward(self, f_in: Tensor, h: Tensor) -> Tensor:
 		if f_in.shape[1] != h.shape[1]:
-			raise ValueError(f'Channel mismatch: f_in={f_in.shape}, h={h.shape}')
+			message: str = (
+				f"I received `{f_in.shape = }` and `{h.shape = }`, but I need the number of channels to match, so "
+				f"`{f_in.shape[1] = }` to equal `{h.shape[1] = }`."
+			)
+			raise ValueError(message)
 		return f_in + self.gamma * h
 
 class Backbone(nn.Module):
 	def __init__(
 		self,
-		in_channels=256,
-		base_channels=64,
-		base_depth=3,
+		in_channels: int = 256,
+		base_channels: int = 64,
+		base_depth: int = 3,
 		channels: tuple[int, int, int, int, int] | None = None,
-		activation=nn.SiLU,
-		norm_eps=1e-8,
-		norm_affine=True,
-		conv_bias=False,
-	):
+		activation: type[nn.Module] = nn.SiLU,
+		norm_eps: float = 1e-8,
+		*, norm_affine: bool = True,
+		conv_bias: bool = False,
+	) -> None:
 		super().__init__()
 		if channels is None:
-			c2 = base_channels
+			c2: int = base_channels
 			c3 = 256
 			c4 = 384
 			c5 = 512
@@ -973,7 +988,7 @@ class Backbone(nn.Module):
 		else:
 			c2, c3, c4, c5, c6 = channels
 
-		self.stem = DSConv(
+		self.stem: DSConv = DSConv(
 			in_channels, c2, k=3, s=(2, 1), p=1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias
 		)
 
@@ -997,9 +1012,9 @@ class Backbone(nn.Module):
 			DS_C3k2(c6, c6, n=base_depth, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias),
 		)
 
-		self.out_channels = [c3, c4, c5, c6]
+		self.out_channels: list[int] = [c3, c4, c5, c6]
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> list[Tensor]:
 		x = self.stem(x)
 		x2 = self.p2(x)
 		x3 = self.p3(x2)
@@ -1013,34 +1028,34 @@ class Decoder(nn.Module):
 		encoder_channels: list[int],
 		hyperace_out_c: int,
 		decoder_channels: list[int],
-		block_depth=1,
-		block_kernel=3,
-		block_expansion=0.5,
-		activation=nn.SiLU,
-		norm_eps=1e-8,
-		norm_affine=True,
-		conv_bias=False,
-	):
+		block_depth: int = 1,
+		block_kernel: int = 3,
+		block_expansion: float = 0.5,
+		activation: type[nn.Module] = nn.SiLU,
+		norm_eps: float = 1e-8,
+		*, norm_affine: bool = True,
+		conv_bias: bool = False,
+	) -> None:
 		super().__init__()
 		c_p2, c_p3, c_p4, c_p5 = encoder_channels
 		c_d2, c_d3, c_d4, c_d5 = decoder_channels
 
-		self.h_to_d5 = Conv(hyperace_out_c, c_d5, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
-		self.h_to_d4 = Conv(hyperace_out_c, c_d4, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
-		self.h_to_d3 = Conv(hyperace_out_c, c_d3, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
-		self.h_to_d2 = Conv(hyperace_out_c, c_d2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.h_to_d5: Conv = Conv(hyperace_out_c, c_d5, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.h_to_d4: Conv = Conv(hyperace_out_c, c_d4, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.h_to_d3: Conv = Conv(hyperace_out_c, c_d3, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.h_to_d2: Conv = Conv(hyperace_out_c, c_d2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
 
-		self.fusion_d5 = GatedFusion(c_d5)
-		self.fusion_d4 = GatedFusion(c_d4)
-		self.fusion_d3 = GatedFusion(c_d3)
-		self.fusion_d2 = GatedFusion(c_d2)
+		self.fusion_d5: GatedFusion = GatedFusion(c_d5)
+		self.fusion_d4: GatedFusion = GatedFusion(c_d4)
+		self.fusion_d3: GatedFusion = GatedFusion(c_d3)
+		self.fusion_d2: GatedFusion = GatedFusion(c_d2)
 
-		self.skip_p5 = Conv(c_p5, c_d5, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
-		self.skip_p4 = Conv(c_p4, c_d4, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
-		self.skip_p3 = Conv(c_p3, c_d3, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
-		self.skip_p2 = Conv(c_p2, c_d2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.skip_p5: Conv = Conv(c_p5, c_d5, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.skip_p4: Conv = Conv(c_p4, c_d4, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.skip_p3: Conv = Conv(c_p3, c_d3, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
+		self.skip_p2: Conv = Conv(c_p2, c_d2, 1, 1, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias)
 
-		self.up_d5 = DS_C3k2(
+		self.up_d5: DS_C3k2 = DS_C3k2(
 			c_d5,
 			c_d4,
 			n=block_depth,
@@ -1051,7 +1066,7 @@ class Decoder(nn.Module):
 			norm_affine=norm_affine,
 			bias=conv_bias,
 		)
-		self.up_d4 = DS_C3k2(
+		self.up_d4: DS_C3k2 = DS_C3k2(
 			c_d4,
 			c_d3,
 			n=block_depth,
@@ -1062,7 +1077,7 @@ class Decoder(nn.Module):
 			norm_affine=norm_affine,
 			bias=conv_bias,
 		)
-		self.up_d3 = DS_C3k2(
+		self.up_d3: DS_C3k2 = DS_C3k2(
 			c_d3,
 			c_d2,
 			n=block_depth,
@@ -1074,7 +1089,7 @@ class Decoder(nn.Module):
 			bias=conv_bias,
 		)
 
-		self.final_d2 = DS_C3k2(
+		self.final_d2: DS_C3k2 = DS_C3k2(
 			c_d2,
 			c_d2,
 			n=block_depth,
@@ -1086,44 +1101,42 @@ class Decoder(nn.Module):
 			bias=conv_bias,
 		)
 
-	def forward(self, enc_feats: list[torch.Tensor], h_ace: torch.Tensor):
+	def forward(self, enc_feats: list[Tensor], h_ace: Tensor) -> Tensor:
 		p2, p3, p4, p5 = enc_feats
 
 		d5 = self.skip_p5(p5)
 		h_d5 = self.h_to_d5(F.interpolate(h_ace, size=d5.shape[2:], mode='bilinear'))
 		d5 = self.fusion_d5(d5, h_d5)
 
-		d5_up = F.interpolate(d5, size=p4.shape[2:], mode='bilinear')
+		d5_up: Tensor = F.interpolate(d5, size=p4.shape[2:], mode='bilinear')
 		d4_skip = self.skip_p4(p4)
 		d4 = self.up_d5(d5_up) + d4_skip
 
 		h_d4 = self.h_to_d4(F.interpolate(h_ace, size=d4.shape[2:], mode='bilinear'))
 		d4 = self.fusion_d4(d4, h_d4)
 
-		d4_up = F.interpolate(d4, size=p3.shape[2:], mode='bilinear')
+		d4_up: Tensor = F.interpolate(d4, size=p3.shape[2:], mode='bilinear')
 		d3_skip = self.skip_p3(p3)
 		d3 = self.up_d4(d4_up) + d3_skip
 
 		h_d3 = self.h_to_d3(F.interpolate(h_ace, size=d3.shape[2:], mode='bilinear'))
 		d3 = self.fusion_d3(d3, h_d3)
 
-		d3_up = F.interpolate(d3, size=p2.shape[2:], mode='bilinear')
+		d3_up: Tensor = F.interpolate(d3, size=p2.shape[2:], mode='bilinear')
 		d2_skip = self.skip_p2(p2)
 		d2 = self.up_d3(d3_up) + d2_skip
 
 		h_d2 = self.h_to_d2(F.interpolate(h_ace, size=d2.shape[2:], mode='bilinear'))
 		d2 = self.fusion_d2(d2, h_d2)
 
-		d2_final = self.final_d2(d2)
-
-		return d2_final
+		return self.final_d2(d2)
 
 class TFC_TDF(nn.Module):
-	def __init__(self, in_c, c, l, f, bn=4, activation=nn.SiLU, norm_eps=1e-8, norm_affine=True, conv_bias=False, linear_bias=False):
+	def __init__(self, in_c: int, c: int, l: int, f: int, bn: int = 4, activation: type[nn.Module] = nn.SiLU, norm_eps: float = 1e-8, *, norm_affine: bool = True, conv_bias: bool = False, linear_bias: bool = False) -> None:
 		super().__init__()
 
 		self.blocks = nn.ModuleList()
-		for i in range(l):
+		for _index in loops(l):
 			block = nn.Module()
 
 			block.tfc1 = nn.Sequential(
@@ -1145,36 +1158,36 @@ class TFC_TDF(nn.Module):
 			self.blocks.append(block)
 			in_c = c
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> Tensor:
 		for block in self.blocks:
-			s = block.shortcut(x)
-			x = block.tfc1(x)
-			x = x + block.tdf(x)
-			x = block.tfc2(x)
+			s: Tensor = cast('Callable[[Tensor], Tensor]', block.shortcut)(x)
+			x = cast('Callable[[Tensor], Tensor]', block.tfc1)(x)
+			x = x + cast('Callable[[Tensor], Tensor]', block.tdf)(x)
+			x = cast('Callable[[Tensor], Tensor]', block.tfc2)(x)
 			x = x + s
 		return x
 
 class FreqPixelShuffle(nn.Module):
 	def __init__(
 		self,
-		in_channels,
-		out_channels,
-		scale,
-		f,
-		tfc_tdf_depth=2,
-		tfc_tdf_bn=4,
-		activation=nn.SiLU,
-		norm_eps=1e-8,
-		norm_affine=True,
-		conv_bias=False,
-		linear_bias=False,
-	):
+		in_channels: int,
+		out_channels: int,
+		scale: int,
+		f: int,
+		tfc_tdf_depth: int = 2,
+		tfc_tdf_bn: int = 4,
+		activation: type[nn.Module] = nn.SiLU,
+		norm_eps: float = 1e-8,
+		*, norm_affine: bool = True,
+		conv_bias: bool = False,
+		linear_bias: bool = False,
+	) -> None:
 		super().__init__()
-		self.scale = scale
-		self.conv = DSConv(
+		self.scale: int = scale
+		self.conv: DSConv = DSConv(
 			in_channels, out_channels * scale, activation=activation, norm_eps=norm_eps, norm_affine=norm_affine, bias=conv_bias
 		)
-		self.out_conv = TFC_TDF(
+		self.out_conv: TFC_TDF = TFC_TDF(
 			out_channels,
 			out_channels,
 			tfc_tdf_depth,
@@ -1187,10 +1200,10 @@ class FreqPixelShuffle(nn.Module):
 			linear_bias=linear_bias,
 		)
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> Tensor:
 		x = self.conv(x)
 		B, C_r, H, W = x.shape
-		out_c = C_r // self.scale
+		out_c: int = C_r // self.scale
 
 		x = x.view(B, out_c, self.scale, H, W)
 
@@ -1202,30 +1215,30 @@ class FreqPixelShuffle(nn.Module):
 class ProgressiveUpsampleHead(nn.Module):
 	def __init__(
 		self,
-		in_channels,
-		out_channels,
-		target_bins=1025,
-		in_bands=62,
+		in_channels: int,
+		out_channels: int,
+		target_bins: int = 1025,
+		in_bands: int = 62,
 		upsample_scales: tuple[int, int, int, int] = (2, 2, 2, 2),
-		tfc_tdf_depth=2,
-		tfc_tdf_bn=4,
-		activation=nn.SiLU,
-		norm_eps=1e-8,
-		norm_affine=True,
-		conv_bias=False,
-		linear_bias=False,
-	):
+		tfc_tdf_depth: int = 2,
+		tfc_tdf_bn: int = 4,
+		activation: type[nn.Module] = nn.SiLU,
+		norm_eps: float = 1e-8,
+		*, norm_affine: bool = True,
+		conv_bias: bool = False,
+		linear_bias: bool = False,
+	) -> None:
 		super().__init__()
-		self.target_bins = target_bins
+		self.target_bins: int = target_bins
 
-		c = in_channels
+		c: int = in_channels
 		scale1, scale2, scale3, scale4 = upsample_scales
-		f1 = in_bands * scale1
-		f2 = f1 * scale2
-		f3 = f2 * scale3
-		f4 = f3 * scale4
+		f1: int = in_bands * scale1
+		f2: int = f1 * scale2
+		f3: int = f2 * scale3
+		f4: int = f3 * scale4
 
-		self.block1 = FreqPixelShuffle(
+		self.block1: FreqPixelShuffle = FreqPixelShuffle(
 			c,
 			c // 2,
 			scale=scale1,
@@ -1238,7 +1251,7 @@ class ProgressiveUpsampleHead(nn.Module):
 			conv_bias=conv_bias,
 			linear_bias=linear_bias,
 		)
-		self.block2 = FreqPixelShuffle(
+		self.block2: FreqPixelShuffle = FreqPixelShuffle(
 			c // 2,
 			c // 4,
 			scale=scale2,
@@ -1251,7 +1264,7 @@ class ProgressiveUpsampleHead(nn.Module):
 			conv_bias=conv_bias,
 			linear_bias=linear_bias,
 		)
-		self.block3 = FreqPixelShuffle(
+		self.block3: FreqPixelShuffle = FreqPixelShuffle(
 			c // 4,
 			c // 8,
 			scale=scale3,
@@ -1264,7 +1277,7 @@ class ProgressiveUpsampleHead(nn.Module):
 			conv_bias=conv_bias,
 			linear_bias=linear_bias,
 		)
-		self.block4 = FreqPixelShuffle(
+		self.block4: FreqPixelShuffle = FreqPixelShuffle(
 			c // 8,
 			c // 16,
 			scale=scale4,
@@ -1280,7 +1293,7 @@ class ProgressiveUpsampleHead(nn.Module):
 
 		self.final_conv = nn.Conv2d(c // 16, out_channels, kernel_size=3, stride=1, padding='same', bias=conv_bias)
 
-	def forward(self, x):
+	def forward(self, x: Tensor) -> Tensor:
 
 		x = self.block1(x)
 		x = self.block2(x)
@@ -1290,43 +1303,42 @@ class ProgressiveUpsampleHead(nn.Module):
 		if x.shape[-1] != self.target_bins:
 			x = F.interpolate(x, size=(x.shape[2], self.target_bins), mode='bilinear', align_corners=False)
 
-		x = self.final_conv(x)
-		return x
+		return self.final_conv(x)
 
 class SegmModel(nn.Module):
 	def __init__(
 		self,
-		in_bands=62,
-		in_dim=256,
-		out_bins=1025,
-		out_channels=4,
-		base_channels=64,
-		base_depth=2,
-		num_hyperedges=32,
-		num_heads=8,
+		in_bands: int = 62,
+		in_dim: int = 256,
+		out_bins: int = 1025,
+		out_channels: int = 4,
+		base_channels: int = 64,
+		base_depth: int = 2,
+		num_hyperedges: int = 32,
+		num_heads: int = 8,
 		backbone_channels: tuple[int, int, int, int, int] | None = None,
-		hyperace_k=2,
-		hyperace_l=1,
-		hyperace_c_h=0.5,
-		hyperace_c_l=0.25,
-		hyperace_c3ah_expansion=1.0,
-		hyperace_low_order_depth=1,
-		hyperace_low_order_kernel=3,
-		hyperace_low_order_expansion=1.0,
+		hyperace_k: int = 2,
+		hyperace_l: int = 1,
+		hyperace_c_h: float = 0.5,
+		hyperace_c_l: float = 0.25,
+		hyperace_c3ah_expansion: float = 1.0,
+		hyperace_low_order_depth: int = 1,
+		hyperace_low_order_kernel: int = 3,
+		hyperace_low_order_expansion: float = 1.0,
 		hyperace_out_channels: int | None = None,
 		decoder_channels: list[int] | tuple[int, int, int, int] | None = None,
-		decoder_block_depth=1,
-		decoder_block_kernel=3,
-		decoder_block_expansion=0.5,
+		decoder_block_depth: int = 1,
+		decoder_block_kernel: int = 3,
+		decoder_block_expansion: float = 0.5,
 		upsample_scales: tuple[int, int, int, int] = (2, 2, 2, 2),
-		upsample_tfc_tdf_depth=2,
-		upsample_tfc_tdf_bn=4,
-		activation=nn.SiLU,
-		norm_eps=1e-8,
-		norm_affine=True,
-		conv_bias=False,
-		linear_bias=False,
-	):
+		upsample_tfc_tdf_depth: int = 2,
+		upsample_tfc_tdf_bn: int = 4,
+		activation: type[nn.Module] = nn.SiLU,
+		norm_eps: float = 1e-8,
+		*, norm_affine: bool = True,
+		conv_bias: bool = False,
+		linear_bias: bool = False,
+	) -> None:
 		super().__init__()
 
 		self.backbone = Backbone(
@@ -1339,10 +1351,10 @@ class SegmModel(nn.Module):
 			norm_affine=norm_affine,
 			conv_bias=conv_bias,
 		)
-		enc_channels = self.backbone.out_channels
+		enc_channels: list[int] = self.backbone.out_channels
 		c2, c3, c4, c5 = enc_channels
 
-		hyperace_in_channels = enc_channels
+		hyperace_in_channels: list[int] = enc_channels
 		hyperace_out_channels = c4 if hyperace_out_channels is None else hyperace_out_channels
 		self.hyperace = HyperACE(
 			hyperace_in_channels,
@@ -1393,8 +1405,8 @@ class SegmModel(nn.Module):
 			linear_bias=linear_bias,
 		)
 
-	def forward(self, x):
-		H, W = x.shape[2:]
+	def forward(self, x: Tensor) -> Tensor:
+		H, _W = x.shape[2:]
 
 		enc_feats = self.backbone(x)
 
@@ -1402,9 +1414,7 @@ class SegmModel(nn.Module):
 
 		dec_feat = self.decoder(enc_feats, h_ace_feats)
 
-		feat_time_restored = F.interpolate(dec_feat, size=(H, dec_feat.shape[-1]), mode='bilinear', align_corners=False)
+		feat_time_restored: Tensor = F.interpolate(dec_feat, size=(H, dec_feat.shape[-1]), mode='bilinear', align_corners=False)
 
-		out = self.upsample_head(feat_time_restored)
-
-		return out
+		return self.upsample_head(feat_time_restored)
 
