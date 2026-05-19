@@ -56,18 +56,20 @@ from operator import neg
 from packaging import version
 from PoPE_pytorch import flash_attn_with_pope, PoPE
 from torch import einsum, nn, Tensor
+from torch._C import _CudaDeviceProperties
 from torch.nn import Module, ModuleList
 from torch_einops_kit import default, exists, once
 from torch_einops_kit.scaleValues import RMSNorm
-from typing import cast, overload, TYPE_CHECKING
+from typing import Any, cast, overload, TYPE_CHECKING
 import torch
 import torch.nn.functional as F
 
 if TYPE_CHECKING:
+	from collections.abc import Callable
 	from rotary_embedding_torch import RotaryEmbedding
 	from torch._C import _CudaDeviceProperties
 
-print_once = once(print)
+print_once: Callable[..., Any] = once(print)
 
 class Attend(nn.Module):
 	"""Compute attention output from precomputed query, key, and value arrays.
@@ -182,7 +184,7 @@ class Attend(nn.Module):
 			return
 
 		device_properties = torch.cuda.get_device_properties(torch.device('cuda')) # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
-		device_properties = cast('_CudaDeviceProperties', device_properties)
+		device_properties: _CudaDeviceProperties = cast('_CudaDeviceProperties', device_properties)
 
 		if device_properties.major == 8 and device_properties.minor == 0:
 			print_once('A100 GPU detected, using flash attention if input tensor is on cuda')
@@ -654,7 +656,7 @@ class Attention(nn.Module):
 			v: Tensor = v.lerp(raiseIfNone(value_residual), mix)
 
 		if exists(self.pope_embed):
-			out = flash_attn_with_pope(q, k, v, pos_emb=self.pope_embed(q.shape[-2]), softmax_scale=self.scale)
+			out: Tensor = flash_attn_with_pope(q, k, v, pos_emb=self.pope_embed(q.shape[-2]), softmax_scale=self.scale)
 		elif exists(self.rotary_embed):
 			q: Tensor = self.rotary_embed.rotate_queries_or_keys(q)
 			k: Tensor = self.rotary_embed.rotate_queries_or_keys(k)
@@ -669,7 +671,7 @@ class Attention(nn.Module):
 		out = rearrange(out, 'b h n d -> b n (h d)')
 		out = self.to_out(out)
 		if exists(value_residual):
-			out = (out, original_values)
+			return (out, original_values)
 		return out
 
 class FeedForward(Module):

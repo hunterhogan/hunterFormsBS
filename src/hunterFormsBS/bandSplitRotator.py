@@ -405,6 +405,9 @@ class BandSplitRotator(Module):
 			inverse STFT.
 		time_transformer_depth : int = 2
 			Depth of the per-layer time-axis transformer block.
+		use_hyperACE: bool = False
+			Apply Hypergraph-based Adaptive Correlation Enhancement (HyperACE) to `MaskEstimator`.
+			https://arxiv.org/abs/2506.17733
 		use_pope : bool = False
 			Replace RoPE [3] with PoPE [4] in the downstream time-axis and frequency-axis attention
 			blocks.
