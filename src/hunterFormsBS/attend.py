@@ -56,7 +56,6 @@ from operator import neg
 from packaging import version
 from PoPE_pytorch import flash_attn_with_pope, PoPE
 from torch import einsum, nn, Tensor
-from torch._C import _CudaDeviceProperties
 from torch.nn import Module, ModuleList
 from torch_einops_kit import default, exists, once
 from torch_einops_kit.scaleValues import RMSNorm

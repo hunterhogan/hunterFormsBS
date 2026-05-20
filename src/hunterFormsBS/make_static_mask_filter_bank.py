@@ -48,11 +48,11 @@ from hunterMakesPy import raiseIfNone
 from hunterMakesPy.dataStructures import autoDecodingRLE
 from typing import Any, TYPE_CHECKING
 import numpy
-import numpy.typing
 import sys
 
 if TYPE_CHECKING:
 	from collections.abc import Sequence
+	from numpy.typing import NDArray
 
 def filter_bank_non_overlapping(freqs_per_bands: Sequence[int], num_bands: int | None = None) -> None:
 	"""Generate one static non-overlapping `mask_filter_bank` from `freqs_per_bands`.
@@ -170,12 +170,12 @@ def librosa_filters_mel(
 	sr = raiseIfNone(sr or sample_rate)
 	n_fft = raiseIfNone(n_fft or stft_n_fft)
 	n_mels = raiseIfNone(n_mels or num_bands)
-	filter_bank: numpy.typing.NDArray[numpy.float32] = filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, **keywordArguments) # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-	mask_filter_bank: numpy.typing.NDArray[numpy.bool] = filter_bank > 0 # pyright: ignore[reportUnknownVariableType]
+	filter_bank: NDArray[numpy.float32] = filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, **keywordArguments) # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+	mask_filter_bank: NDArray[numpy.bool] = filter_bank > 0 # pyright: ignore[reportUnknownVariableType]
 	mask_filter_bank[0, 0] = True
 	print_static_mask(mask_filter_bank) # pyright: ignore[reportUnknownArgumentType]
 
-def print_static_mask(mask_filter_bank: numpy.typing.NDArray[numpy.bool]) -> None:
+def print_static_mask(mask_filter_bank: NDArray[numpy.bool]) -> None:
 	"""Print one paste-ready static `mask_filter_bank` assignment.
 
 	You can use this function to serialize one Boolean band-membership matrix to compact Python
@@ -185,7 +185,7 @@ def print_static_mask(mask_filter_bank: numpy.typing.NDArray[numpy.bool]) -> Non
 
 	Parameters
 	----------
-	mask_filter_bank : numpy.typing.NDArray[numpy.bool]
+	mask_filter_bank : NDArray[numpy.bool]
 		Boolean band-membership matrix with shape `(band, freq)`.
 
 	Standard Output
