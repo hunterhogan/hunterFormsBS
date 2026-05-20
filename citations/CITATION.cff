@@ -19,16 +19,16 @@ authors:
   family-names: Hogan
   email: HunterHogan@pm.me
 cff-version: 1.2.0
-commit: f63d890222d0307ec456a498fee077a53686fc91
+commit: 6e919048e84cb568350894edb733044914afe412
 contact:
 - given-names: Hunter
   family-names: Hogan
   email: HunterHogan@pm.me
-date-released: '2026-05-19'
+date-released: '2026-05-20'
 identifiers:
 - type: url
-  value: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.1.6
-  description: The URL for hunterFormsBS 0.1.6.
+  value: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.1.7
+  description: The URL for hunterFormsBS 0.1.7.
 keywords:
 - artificial intelligence
 - audio source separation
@@ -37,8 +37,8 @@ keywords:
 license: CC-BY-NC-4.0
 message: Cite this software with the metadata in this file.
 repository: https://github.com/hunterhogan/hunterFormsBS.git
-repository-artifact: https://pypi.org/project/hunterformsbs/0.1.6/
-repository-code: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.1.6
+repository-artifact: https://pypi.org/project/hunterformsbs/0.1.7/
+repository-code: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.1.7
 title: hunterFormsBS
 url: https://github.com/hunterhogan/hunterFormsBS
-version: 0.1.6
+version: 0.1.7
