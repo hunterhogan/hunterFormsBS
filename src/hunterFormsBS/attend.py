@@ -66,7 +66,6 @@ import torch.nn.functional as F
 if TYPE_CHECKING:
 	from collections.abc import Callable
 	from rotary_embedding_torch import RotaryEmbedding
-	from torch._C import _CudaDeviceProperties
 
 print_once: Callable[..., Any] = once(print)
 
@@ -183,9 +182,8 @@ class Attend(nn.Module):
 			return
 
 		device_properties = torch.cuda.get_device_properties(torch.device('cuda')) # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
-		device_properties: _CudaDeviceProperties = cast('_CudaDeviceProperties', device_properties)
 
-		if device_properties.major == 8 and device_properties.minor == 0:
+		if device_properties.major == 8 and device_properties.minor == 0: # pyright: ignore[reportUnknownMemberType]
 			print_once('A100 GPU detected, using flash attention if input tensor is on cuda')
 			self.cuda_config = FlashAttentionConfig(enable_flash=True, enable_math=False, enable_mem_efficient=False)
 		else:
