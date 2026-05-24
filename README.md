@@ -189,8 +189,6 @@ imports so the main namespace remains small and optional dependencies stay optio
 
 ### Attention Is All You Need
 
-(^Which is why there are no other papers on this list.)
-
 - [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/NIPS2017_3f5ee243.bib) [TeX Source with precise formulas for AI agents.](https://arxiv.org/src/1706.03762)
 - Proceedings: [proceedings.neurips.cc](https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf)
 
@@ -277,6 +275,31 @@ imports so the main namespace remains small and optional dependencies stay optio
 - Implementations:
   - [lucidrains/BS-RoFormer](https://github.com/lucidrains/BS-RoFormer)
     - [context7](https://context7.com/lucidrains/bs-roformer)
+
+### Sound Demixing Challenge 2023 Music Demixing Track Technical Report: TFC-TDF-UNet v3
+
+- Common name: TFC-TDF-UNet v3
+- [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/kim2023sounddemixingchallenge2023.bib) [TeX Source with precise formulas for AI agents.](https://arxiv.org/src/2306.09382)
+- eprint: [arXiv.2306.09382](https://arxiv.org/abs/2306.09382)
+- Implementation:
+  - [kuielab/sdx23](https://github.com/kuielab/sdx23)
+
+### Music Source Separation Based on a Lightweight Deep Learning Framework (DTTNET: DUAL-PATH TFC-TDF UNET)
+
+- Common name: DTTNet
+- [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/chen_dttnet_2024.bib) [TeX Source with precise formulas for AI agents.](https://arxiv.org/src/2309.08684)
+- DOI: [10.1109/ICASSP48485.2024.10448020](https://doi.org/10.1109/ICASSP48485.2024.10448020)
+- Free pre-print: [arXiv:2309.08684](https://arxiv.org/abs/2309.08684)
+- Implementation:
+  - [junyuchen-cjy/DTTNet-Pytorch](https://github.com/junyuchen-cjy/DTTNet-Pytorch)
+
+### YOLOv13: Real-Time Object Detection with Hypergraph-Enhanced Adaptive Visual Perception
+
+- Common names: YOLOv13, HyperACE, FullPAD
+- [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/lei2025yolov13realtimeobjectdetection.bib) [TeX Source with precise formulas for AI agents.](https://arxiv.org/src/2506.17733)
+- eprint: [arXiv.2506.17733](https://arxiv.org/abs/2506.17733)
+- Implementation:
+  - [iMoonLab/yolov13](https://github.com/iMoonLab/yolov13)
 
 ### Value Residual Learning
 

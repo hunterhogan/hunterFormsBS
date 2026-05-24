@@ -44,7 +44,7 @@ References
 from __future__ import annotations
 
 from einops import rearrange
-from hunterFormsBS.bandSplitAnnex import SegmModel
+from hunterFormsBS.hyperACE import SegmModel
 from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersSTFT
 from torch import nn, Tensor, tensor
 from torch.nn import Module, ModuleList
