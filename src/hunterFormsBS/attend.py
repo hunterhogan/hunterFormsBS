@@ -159,7 +159,7 @@ class Attend(nn.Module):
 			https://arxiv.org/abs/2410.02367
 		[3] thu-ml/SageAttention
 			https://github.com/thu-ml/SageAttention
-		"""
+		"""  # noqa: DOC501
 		super().__init__()
 		self.scale: float = scale
 		self.attn_dropout: float = attn_dropout
@@ -181,9 +181,9 @@ class Attend(nn.Module):
 		if not torch.cuda.is_available() or not self.flash:
 			return
 
-		device_properties = torch.cuda.get_device_properties(torch.device('cuda')) # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+		device_properties = torch.cuda.get_device_properties(torch.device('cuda'))  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
-		if device_properties.major == 8 and device_properties.minor == 0: # pyright: ignore[reportUnknownMemberType]
+		if device_properties.major == 8 and device_properties.minor == 0:  # pyright: ignore[reportUnknownMemberType]
 			print_once('A100 GPU detected, using flash attention if input tensor is on cuda')
 			self.cuda_config = FlashAttentionConfig(enable_flash=True, enable_math=False, enable_mem_efficient=False)
 		else:
@@ -260,7 +260,7 @@ class Attend(nn.Module):
 		"""
 		is_cuda: bool = q.is_cuda
 
-		q = q * (self.scale / (q.shape[-1] ** neg(0.5)))
+		q *= (self.scale / (q.shape[-1] ** neg(0.5)))
 
 		# Check if there is a compatible device for flash attention
 		config: FlashAttentionConfig = self.cpu_config
@@ -268,7 +268,7 @@ class Attend(nn.Module):
 			config = self.cuda_config
 
 		# pytorch 2.0 flash attn: q, k, v, mask, attn_dropout, softmax_scale
-		with torch.backends.cuda.sdp_kernel(**config._asdict()): # pyright: ignore[reportDeprecated]
+		with torch.backends.cuda.sdp_kernel(**config._asdict()):  # pyright: ignore[reportDeprecated]
 			out: Tensor = F.scaled_dot_product_attention(q, k, v, dropout_p=self.attn_dropout if self.training else 0.0)
 
 		return out
@@ -337,7 +337,7 @@ class Attend(nn.Module):
 		"""
 		if self.sage_attention:
 			from sageattention import sageattn  # pyright: ignore[reportMissingImports, reportUnknownVariableType] # ty:ignore[unresolved-import]
-			return sageattn(q, k, v, tensor_layout='HND', is_causal=False) # pyright: ignore[reportUnknownVariableType]
+			return sageattn(q, k, v, tensor_layout='HND', is_causal=False)  # pyright: ignore[reportUnknownVariableType]
 		if self.flash:
 			return self.flash_attn(q, k, v)
 
@@ -554,9 +554,9 @@ class Attention(nn.Module):
 		self.learned_value_residual_mix = nn.Linear(dim, self.heads) if use_value_residual_learning else None"""
 
 	@overload
-	def forward(self, x: Tensor, value_residual: None = None) -> Tensor:...
+	def forward(self, x: Tensor, value_residual: None = None) -> Tensor: ...
 	@overload
-	def forward(self, x: Tensor, value_residual: Tensor) -> tuple[Tensor, Tensor | None]:...
+	def forward(self, x: Tensor, value_residual: Tensor) -> tuple[Tensor, Tensor | None]: ...
 	def forward(self, x: Tensor, value_residual: Tensor | None = None) -> Tensor | tuple[Tensor, Tensor | None]:
 		"""Compute gated multi-head attention output from activations `x`.
 
@@ -663,7 +663,7 @@ class Attention(nn.Module):
 
 		# after attend
 		gates: Tensor = self.to_gates(x)
-		out = out * rearrange(gates, 'b n h -> b h n 1').sigmoid()
+		out *= rearrange(gates, 'b n h -> b h n 1').sigmoid()
 
 		out = rearrange(out, 'b h n d -> b n (h d)')
 		out = self.to_out(out)
@@ -983,9 +983,9 @@ class Transformer(Module):
 		self.norm: RMSNorm | nn.Identity = RMSNorm(dim) if norm_output else nn.Identity()
 
 	@overload
-	def forward(self, x: Tensor, value_residual: None = None) -> Tensor:...
+	def forward(self, x: Tensor, value_residual: None = None) -> Tensor: ...
 	@overload
-	def forward(self, x: Tensor, value_residual: Tensor) -> tuple[Tensor, Tensor | None]:...
+	def forward(self, x: Tensor, value_residual: Tensor) -> tuple[Tensor, Tensor | None]: ...
 	def forward(self, x: Tensor, value_residual: Tensor | None = None) -> Tensor | tuple[Tensor, Tensor | None]:
 		"""Transform activations `x` through the residual stack.
 

@@ -3,6 +3,7 @@ extend = "pyproject.toml"
 line-length = 140
 
 [lint]
+preview = true
 allowed-confusables = [
   "′",
   "×",
@@ -59,6 +60,16 @@ ignore = [
   "TD",
   "W191",
   "W292",
+  # preview rules
+  "CPY001",
+  "D420",
+  "DOC102",
+  "E302",
+  "E303",
+  "E305",
+  "PLR0914",
+  "PLR0917",
+  "S403",
 ]
 select = ["ALL"]
 task-tags = ["DEVELOPMENT", "NOTE", "SEMIOTICS", "TODO"]

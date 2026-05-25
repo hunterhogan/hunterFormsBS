@@ -4,8 +4,9 @@
 You can use this module to build the optional spectrogram branch that augments
 `hunterFormsBS.bandSplit.MaskEstimator` [1] with a segmentation-style network. The module adapts the
 Hypergraph-based Adaptive Correlation Enhancement (HyperACE) and FullPAD ideas from YOLOv13 [2] to
-spectrogram features produced in the BS-RoFormer and Mel-RoFormer model family [3][4]. It also uses
-TFC-TDF residual refinement blocks from the music-source-separation literature [5][6].
+spectrogram features produced in the BS-RoFormer and Mel-RoFormer model family [3][4], following
+unwa's BS-Roformer-HyperACE implementation [7]. It also uses TFC-TDF residual refinement blocks from
+the music-source-separation literature [5][6].
 
 Contents
 --------
@@ -65,6 +66,8 @@ References
 	https://arxiv.org/abs/2309.08684
 [6] Kim, M., Lee, J. H., and Jung, S. (2023). Sound Demixing Challenge 2023 Music
 	Demixing Track Technical Report: TFC-TDF-UNet v3. https://arxiv.org/abs/2306.09382
+[7] unwa (pcunwa). (2025). BS-Roformer-HyperACE.
+	https://huggingface.co/pcunwa/BS-Roformer-HyperACE/resolve/main/v2_voc/bs_roformer.py
 """
 from __future__ import annotations
 
@@ -461,10 +464,11 @@ class DS_C3k(nn.Module):
 		Let X ≜ `x`,  C₁ ≜ `self.cv1`,  C₂ ≜ `self.cv2`,
 			C₃ ≜ `self.cv3`,  B ≜ `self.m`
 
-		Y = C₃([B(C₁(X)) ‖ C₂(X)]_channel)
+		Y = C₃(Concat(B(C₁(X)), C₂(X)))
 
 		where Y ≜ `fusedTensor`
 	```
+	'Concat' _sic_ [1 at Figure 4]
 
 	References
 	----------
@@ -667,13 +671,14 @@ class AdaptiveHyperedgeGeneration(nn.Module):
 	```
 		Let X ≜ `x`,  B ≜ |X|₀,  N ≜ |X|₁,  C ≜ |X|₂,
 			M ≜ `self.num_hyperedges`,  H ≜ `self.num_heads`,  d ≜ C / H,
-			P⁰ ≜ `self.global_proto`,  Φ ≜ `self.context_mapper`,
+			P⁰ ≜ `self.global_proto`,
+			Φ ≜ `self.context_mapper`  (Φ : ℝ²ᶜ → ℝᴹˣᶜ),
 			Wᵠ ≜ `self.query_proj`
 
 		fᵃᵛᵍ[b, c] = (1 / N) ∑ᵢ X[b, i, c]
 		fᵐᵃˣ[b, c] = maxᵢ X[b, i, c]
 		fᶜᵗˣ[b] = [fᵃᵛᵍ[b] ‖ fᵐᵃˣ[b]]
-		P[b, m, :] = P⁰[m, :] + reshape_M×C(Φ(fᶜᵗˣ[b]))[m, :]
+		P[b, m, :] = P⁰[m, :] + Φ(fᶜᵗˣ[b])[m, :]
 		Z[b, i, :] = Wᵠ X[b, i, :]
 		Sʰ[b, i, m] = ⟨Zʰ[b, i, :], Pʰ[b, m, :]⟩ / √d
 		S̄[b, i, m] = (1 / H) ∑ₕ Sʰ[b, i, m]
@@ -1040,10 +1045,11 @@ class C3AH(nn.Module):
 		Xˡ = C₁(X₀)
 		Xᵃ = C₂(X₀)
 		Xʰ = H(Xᵃ)
-		Y = C₃([Xʰ ‖ Xˡ]_channel)
+		Y = C₃(Concat(Xʰ, Xˡ))
 
 		where Y ≜ `fusedTensor`
 	```
+	'Concat' _sic_ [1 at Equations (9) and (11)]
 
 	References
 	----------
@@ -1150,7 +1156,7 @@ class HyperACE(nn.Module):
 		Let [B₂, B₃, B₄, B₅] ≜ `x`,  Rᵢ ≜ Resize(· → size(B₄)),
 			Cᶠ ≜ `self.fuse_conv`
 
-		Xᵇ = Cᶠ([R₂(B₂) ‖ R₃(B₃) ‖ B₄ ‖ R₅(B₅)]_channel)
+		Xᵇ = Cᶠ(Concat(R₂(B₂), R₃(B₃), B₄, R₅(B₅)))
 		[Xᵇʰ, Xᵇˡ, Xˢ] = split_channel(Xᵇ; `self.c_h`, `self.c_l`, `self.c_s`)
 	```
 
@@ -1166,8 +1172,9 @@ class HyperACE(nn.Module):
 	```
 		Let Cʰ ≜ `self.high_order_fuse`
 
-		Xʰ = Cʰ([Xʰ₀ ‖ ⋯ ‖ Xʰ_{K−1}]_channel)
+		Xʰ = Cʰ(Concat(Xʰ₀, …, Xʰ_{K−1}))
 	```
+	'Concat' _sic_ [1 at Equation (9)]
 
 	low-order branch [1 at Equation (10)] : equation
 	```
@@ -1180,10 +1187,11 @@ class HyperACE(nn.Module):
 	```
 		Let Cʸ ≜ `self.final_fuse`
 
-		Y = Cʸ([Xʰ ‖ Xˡ ‖ Xˢ]_channel)
+		Y = Cʸ(Concat(Xʰ, Xˡ, Xˢ))
 
 		where Y ≜ `conditioningTensor`
 	```
+	'Concat' _sic_ [1 at Equation (11)]
 
 	Implementation boundary
 	-----------------------
@@ -1485,7 +1493,7 @@ class GatedFusion(nn.Module):
 		[2] Lei, M., Li, S., Wu, Y., Hu, H., Zhou, Y., Zheng, X., Ding, G., Du, S., Wu, Z.,
 			and Gao, Y. (2025). YOLOv13: Real-Time Object Detection with Hypergraph-Enhanced Adaptive
 			Visual Perception. https://arxiv.org/abs/2506.17733
-		"""
+		"""  # noqa: DOC502
 		if f_in.shape[1] != h.shape[1]:
 			message: str = (
 				f"I received `{f_in.shape = }` and `{h.shape = }`, but I need the number of channels to match, so "
@@ -1672,6 +1680,7 @@ class Decoder(nn.Module):
 
 		Hᵢ = Pᵢ(Rᵢ(Y))
 	```
+	'Resize' _sic_ [2 at Equation (12)]
 
 	FullPAD gate [2 at Equation (13)] : equation
 	```
@@ -1696,6 +1705,7 @@ class Decoder(nn.Module):
 
 		where Y ≜ `decodedTensor`
 	```
+	'Resize' _sic_ [2 at Equation (12)]
 
 	See Also
 	--------
@@ -2032,9 +2042,9 @@ class TFC_TDF(nn.Module):
 		for block in self.blocks:
 			s: Tensor = cast('Callable[[Tensor], Tensor]', block.shortcut)(x)
 			x = cast('Callable[[Tensor], Tensor]', block.tfc1)(x)
-			x = x + cast('Callable[[Tensor], Tensor]', block.tdf)(x)
+			x += cast('Callable[[Tensor], Tensor]', block.tdf)(x)
 			x = cast('Callable[[Tensor], Tensor]', block.tfc2)(x)
-			x = x + s
+			x += s
 		return x
 
 class FreqPixelShuffle(nn.Module):
@@ -2380,7 +2390,7 @@ class SegmModel(nn.Module):
 	You can use `SegmModel` to encode one band-split feature tensor, aggregate the encoder stages with
 	`HyperACE`, decode the aggregated representation, restore the time resolution, and upsample the
 	frequency axis to the target STFT-bin count. `bandSplit.MaskEstimator` uses this branch when
-	`use_hyperACE` is enabled [1].
+	`use_hyperACE` is enabled [1]. This assembly follows unwa's BS-Roformer-HyperACE implementation [5].
 
 	Mathematics
 	-----------
@@ -2420,6 +2430,8 @@ class SegmModel(nn.Module):
 		with Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
 	[4] Wang, J.-C., Lu, W.-T., and Chen, J. (2024). Mel-RoFormer for Vocal Separation and
 		Vocal Melody Transcription. https://arxiv.org/abs/2409.04702
+	[5] unwa (pcunwa). (2025). BS-Roformer-HyperACE.
+		https://huggingface.co/pcunwa/BS-Roformer-HyperACE/resolve/main/v2_voc/bs_roformer.py
 	"""
 
 	def __init__(

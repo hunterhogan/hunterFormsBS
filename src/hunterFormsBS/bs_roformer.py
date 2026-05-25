@@ -521,7 +521,7 @@ class BSRoformer(Module):
 		num_freqs_per_band: Tensor = reduce(mask_filter_bank, 'b f -> b', 'sum')
 		self.register_buffer('num_freqs_per_band', num_freqs_per_band, persistent=False)
 
-		freqs_per_bands_with_complex: tuple[int, ...] = tuple(map(partial(mul, 2 * self.audio_channels), num_freqs_per_band.tolist())) # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]  # ty:ignore[invalid-assignment]
+		freqs_per_bands_with_complex: tuple[int, ...] = tuple(map(partial(mul, 2 * self.audio_channels), num_freqs_per_band.tolist()))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]  # ty:ignore[invalid-assignment]
 		self.band_split: BandSplit = BandSplit(dim=dim, dim_inputs=freqs_per_bands_with_complex)
 		self.mask_estimators: ModuleList = nn.ModuleList([
 			MaskEstimator(dim
@@ -681,7 +681,7 @@ class BSRoformer(Module):
 			https://github.com/ZFTurbo/Music-Source-Separation-Training
 		[9] torch.utils.checkpoint.checkpoint
 			https://docs.pytorch.org/docs/stable/checkpoint.html
-		"""
+		"""  # noqa: DOC501
 		device: torch.device = raw_audio.device
 		x_is_mps: bool = device.type == 'mps'
 
@@ -733,7 +733,7 @@ class BSRoformer(Module):
 		x = rearrange(x, 'b f t c -> b t (f c)')
 
 		if self.use_torch_checkpoint:
-			x = checkpoint(self.band_split, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
+			x = checkpoint(self.band_split, x, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
 		else:
 			x = self.band_split(x)
 
@@ -753,7 +753,7 @@ class BSRoformer(Module):
 			if self.skip_connection:
 				# Sum all previous
 				for j in range(i):
-					x = x + raiseIfNone(store[j])
+					x += raiseIfNone(store[j])
 
 			x = rearrange(x, 'b t f d -> b f t d')
 			x, ps = pack([x], '* t d')
@@ -767,7 +767,7 @@ class BSRoformer(Module):
 				time_v_residual = default(time_v_residual, next_time_v_residual)
 			else:  # noqa: PLR5501
 				if self.use_torch_checkpoint:
-					x = checkpoint(time_transformer, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
+					x = checkpoint(time_transformer, x, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
 				else:
 					x = time_transformer(x)
 
@@ -784,7 +784,7 @@ class BSRoformer(Module):
 				freq_v_residual = default(freq_v_residual, next_freq_v_residual)
 			else:  # noqa: PLR5501
 				if self.use_torch_checkpoint:
-					x = checkpoint(freq_transformer, x, use_reentrant=False) # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
+					x = checkpoint(freq_transformer, x, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
 				else:
 					x = freq_transformer(x)
 
@@ -806,7 +806,7 @@ class BSRoformer(Module):
 			stem_ids = active_stem_ids
 
 		if self.use_torch_checkpoint:
-			masks: Tensor = torch.stack([checkpoint(fn, x, use_reentrant=False) for fn in heads], dim=1) # pyright: ignore[reportArgumentType]
+			masks: Tensor = torch.stack([checkpoint(fn, x, use_reentrant=False) for fn in heads], dim=1)  # pyright: ignore[reportArgumentType]
 		else:
 			masks = torch.stack([mask_estimator(x) for mask_estimator in heads], dim=1)
 		masks = rearrange(masks, 'b n t (f c) -> b n f t c', c=2)
@@ -834,7 +834,7 @@ class BSRoformer(Module):
 
 		# modulate stft repr with estimated mask
 
-		stft_repr = stft_repr * masks
+		stft_repr *= masks
 
 		# istft
 
@@ -844,9 +844,9 @@ class BSRoformer(Module):
 			stft_repr = stft_repr.index_fill(1, tensor(0, device=device), 0.0)
 
 		try:
-			recon_audio: Tensor = cast('Callable[..., Tensor]', torch.istft)(stft_repr, **self.stft_kwargs, window=stft_window, return_complex=False, length=istft_length) # pyright: ignore[reportUnknownMemberType]
+			recon_audio: Tensor = cast('Callable[..., Tensor]', torch.istft)(stft_repr, **self.stft_kwargs, window=stft_window, return_complex=False, length=istft_length)  # pyright: ignore[reportUnknownMemberType]
 		except RuntimeError:
-			recon_audio = cast('Callable[..., Tensor]', torch.istft)( # pyright: ignore[reportUnknownMemberType]
+			recon_audio = cast('Callable[..., Tensor]', torch.istft)(  # pyright: ignore[reportUnknownMemberType]
 				stft_repr.cpu() if x_is_mps else stft_repr,
 				**self.stft_kwargs,
 				window=stft_window.cpu() if x_is_mps else stft_window,

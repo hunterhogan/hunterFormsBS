@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 import importlib
 import pkgutil
 import pytest
 import warnings
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
 	from types import ModuleType

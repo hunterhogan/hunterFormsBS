@@ -170,10 +170,10 @@ def librosa_filters_mel(
 	sr = raiseIfNone(sr or sample_rate)
 	n_fft = raiseIfNone(n_fft or stft_n_fft)
 	n_mels = raiseIfNone(n_mels or num_bands)
-	filter_bank: NDArray[numpy.float32] = filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, **keywordArguments) # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-	mask_filter_bank: NDArray[numpy.bool] = filter_bank > 0 # pyright: ignore[reportUnknownVariableType]
+	filter_bank: NDArray[numpy.float32] = filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, **keywordArguments)  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+	mask_filter_bank: NDArray[numpy.bool] = filter_bank > 0  # pyright: ignore[reportUnknownVariableType]
 	mask_filter_bank[0, 0] = True
-	print_static_mask(mask_filter_bank) # pyright: ignore[reportUnknownArgumentType]
+	print_static_mask(mask_filter_bank)  # pyright: ignore[reportUnknownArgumentType]
 
 def print_static_mask(mask_filter_bank: NDArray[numpy.bool]) -> None:
 	"""Print one paste-ready static `mask_filter_bank` assignment.

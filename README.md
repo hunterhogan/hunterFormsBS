@@ -314,6 +314,7 @@ imports so the main namespace remains small and optional dependencies stay optio
 
 - Common name: PoPE
 - [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/gopalakrishnan2025decoupling.bib) [TeX Source with precise formulas for AI agents.](https://arxiv.org/src/2509.10534)
+- OpenReview.net: [ICLR 2026 Conference](https://openreview.net/forum?id=kf2mzS6xfk)
 - eprint: [arXiv.2509.10534](https://arxiv.org/pdf/2509.10534)
 - Implementations:
   - [lucidrains/PoPE-pytorch](https://github.com/lucidrains/PoPE-pytorch)
@@ -321,20 +322,22 @@ imports so the main namespace remains small and optional dependencies stay optio
   - [hunterhogan/PoPE-pytorch](https://github.com/hunterhogan/PoPE-pytorch)
     - [context7](https://context7.com/hunterhogan/pope-pytorch/admin)
 
-<!-- Incorporate this? [Review and rejection by ICLR 2026 Conference](https://openreview.net/forum?id=kf2mzS6xfk) -->
-
 ### Packages and documentation
 
 - [pytorch/pytorch](https://github.com/pytorch/pytorch)
   - [official documentation](https://docs.pytorch.org/docs/)
   - [context7](https://context7.com/pytorch/pytorch)
-  - [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/Ansel_PyTorch_2_Faster_2024.bib)
+  - [BibTeX citation](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/Ansel_PyTorch_2_Faster_2024.bib)
 - [ZFTurbo/Music-Source-Separation-Training](https://github.com/ZFTurbo/Music-Source-Separation-Training)
   - [context7](https://context7.com/zfturbo/music-source-separation-training)
+- [pcunwa/BS-Roformer-HyperACE](https://huggingface.co/pcunwa/BS-Roformer-HyperACE)
+  - [v2_voc source implementation](https://huggingface.co/pcunwa/BS-Roformer-HyperACE/resolve/main/v2_voc/bs_roformer.py)
+  - [BibTeX citation](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/unwa_BS-Roformer-HyperACE_2025.bib)
 - [lucidrains/torch-einops-utils](https://github.com/lucidrains/torch-einops-utils)
   - [context7](https://context7.com/lucidrains/torch-einops-utils)
 - [hunterhogan/torch_einops_kit](https://github.com/hunterhogan/torch_einops_kit)
   - [context7](https://context7.com/hunterhogan/torch_einops_kit)
+  - [BibTeX citation](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/Hogan_torch-einops-kit_2026.bib)
 
 ## My recovery
 
