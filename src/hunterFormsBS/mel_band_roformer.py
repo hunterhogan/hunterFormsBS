@@ -16,16 +16,16 @@ Contents
 --------
 Classes
     MelBandRoformer
-        Waveform separator with overlapped mel-band front end, RoPE or PoPE positional embedding,
-        optional linear-attention pre-block, and multi-resolution STFT training loss.
+        Waveform separator with converged constructor arguments, optional `SageAttention`
+		backend selection, and multi-resolution STFT training loss.
 
 References
 ----------
 [2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
 	Transcription https://arxiv.org/abs/2409.04702
-[3] hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default
+[3] `hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default`
 
-[4] hunterFormsBS.make_static_mask_filter_bank
+[4] `hunterFormsBS.make_static_mask_filter_bank`
 
 [5] thu-ml/SageAttention
 	https://github.com/thu-ml/SageAttention
@@ -41,7 +41,6 @@ from hunterFormsBS.attend import Transformer
 from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, mask_filter_bank_mel_band_default, MaskEstimator
 from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersSTFT, ParametersTransformer
 from hunterMakesPy import raiseIfNone
-from hyper_connections import get_init_and_expand_reduce_stream_functions  # NOTE There is a newer version.
 from more_itertools import loops
 from operator import mul
 from PoPE_pytorch import PoPE
@@ -49,7 +48,7 @@ from rotary_embedding_torch import RotaryEmbedding
 from torch import nn, tensor, Tensor
 from torch.nn import Module, ModuleList
 from torch.utils.checkpoint import checkpoint  # pyright: ignore[reportUnknownVariableType]
-from torch_einops_kit import default, exists
+from torch_einops_kit import exists
 from torch_einops_kit.einops import pack_one, unpack_one
 from torch_einops_kit.scaleValues import RMSNorm
 from typing import cast, TYPE_CHECKING
@@ -70,9 +69,8 @@ class MelBandRoformer(Module):
 	`hunterFormsBS.bandSplit.lossComputation` [7]. The band front end can follow the non-overlapping
 	band split from BS-RoFormer [1] or the overlapped mel-band split from Mel-Band RoFormer [2].
 
-	`BandSplitRotator` can select RoPE [3] or PoPE [4], request the optional `SageAttention` backend
-	[5][6], expose residual-stream and value-residual controls from downstream attention blocks, and
-	keep compatibility fields for older configuration files [8][9].
+	`MelBandRoformer` can select RoPE [3] or PoPE [4], request the optional `SageAttention` backend
+	[5][6], and keep compatibility fields for older configuration files [8][9].
 
 	Attributes
 	----------
@@ -81,9 +79,6 @@ class MelBandRoformer(Module):
 	band_split : BandSplit
 		Front-end projection module that converts gathered STFT band slices to model-width band token
 		`Tensor` `x`.
-	expand_stream : Callable[..., Tensor]
-		Stream-expansion callable created when the configured residual-stream path initializes outer
-		multi-stream routing.
 	final_norm : RMSNorm | nn.Identity
 		Final normalization module applied to band token `Tensor` `x` after the hierarchical attention
 		stack.
@@ -110,13 +105,8 @@ class MelBandRoformer(Module):
 	num_freqs_per_band : Tensor
 		Frequency-bin count for each band in `mask_filter_bank`. The count sizes the band front end
 		and each mask-estimator head.
-	num_residual_streams : int
-		Number of residual streams requested for the downstream transformer stack.
 	num_stems : int
 		Number of configured output sources.
-	reduce_stream : Callable[..., Tensor]
-		Stream-reduction callable created with `expand_stream` when the configured residual-stream
-		path initializes outer multi-stream routing.
 	skip_connection : bool
 		Whether later hierarchical blocks add stored band token `Tensor` output from earlier
 		hierarchical blocks.
@@ -135,13 +125,11 @@ class MelBandRoformer(Module):
 	Configuration modes
 	-------------------
 	compatibility parameters : behavior
-		`dim_freqs_in`, `linear_transformer_depth`, `mc_hyper_conn_sinkhorn_iters`, and
-		`num_residual_fracs` remain in `__init__` for configuration compatibility. `dim_freqs_in` is
-		ignored because the effective frequency layout comes from the STFT settings and band
-		definitions. `linear_transformer_depth` is passed through as a compatibility flag, but the
-		current implementation no longer inserts a separate `LinearAttention` block. Current code
-		accepts `mc_hyper_conn_sinkhorn_iters` and `num_residual_fracs` but does not read those
-		values.
+		`dim_freqs_in` and `linear_transformer_depth` remain in `__init__` for configuration
+		compatibility. `dim_freqs_in` is ignored because the effective frequency layout comes from the
+		STFT settings and band definitions. `linear_transformer_depth` is passed through as a
+		compatibility flag, but the current implementation no longer inserts a separate
+		`LinearAttention` block.
 	effective default selection : behavior
 		`final_norm`, `norm_output`, and `zero_dc` accept `None` only to preserve historical behavior
 		from configuration files made for `BSRoformer` [8] and `MelBandRoformer` [9]. In mel-band mode
@@ -161,11 +149,10 @@ class MelBandRoformer(Module):
 	Downstream integration
 	----------------------
 	downstream parameter passthrough : behavior
-		`BandSplitRotator.__init__` exposes parameters that are forwarded to downstream transformer,
+		`MelBandRoformer.__init__` exposes parameters that are forwarded to downstream transformer,
 		attention, mask-estimator, STFT, and loss components. The forwarded identifiers stay
-		consistent across the downstream classes, including `attn_dropout`, `ff_dropout`,
-		`learned_value_residual_mix`, `num_residual_streams`, `sage_attention`, `scale`, and
-		`use_value_residual_learning`.
+		consistent across the downstream classes, including `activation`, `attn_dropout`,
+		`ff_dropout`, `sage_attention`, and `scale`.
 	stem selection : behavior
 		`forward` accepts `active_stem_ids`. The selected mask-estimator head index list becomes the
 		`stem_ids` value passed to `hunterFormsBS.bandSplit.lossComputation` [7], so an external
@@ -176,13 +163,6 @@ class MelBandRoformer(Module):
 		behavior is practical for memory-constrained training in external frameworks such as
 		Music-Source-Separation-Training [7], but it is not a defining architectural requirement from
 		the model papers [1][2].
-
-	See Also
-	--------
-	hunterFormsBS.bs_roformer.BSRoformer
-		Specialized non-overlapping band-split `class`.
-	hunterFormsBS.bandSplitRotator.BandSplitRotator
-		Unified separator that uses `BandSplit` as the band front end.
 
 	References
 	----------
@@ -200,11 +180,11 @@ class MelBandRoformer(Module):
 	[6] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., & Chen, J. (2025).
 		SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration.
 		https://arxiv.org/abs/2410.02367
-	[7] hunterFormsBS.bandSplit.lossComputation
+	[7] `hunterFormsBS.bandSplit.lossComputation`
 
-	[8] hunterFormsBS.bs_roformer.BSRoformer
+	[8] `hunterFormsBS.bs_roformer.BSRoformer`
 
-	[9] hunterFormsBS.mel_band_roformer.MelBandRoformer
+	[9] `MelBandRoformer`
 
 	[10] torch.utils.checkpoint.checkpoint
 		https://docs.pytorch.org/docs/stable/checkpoint.html
@@ -225,12 +205,10 @@ class MelBandRoformer(Module):
 		freq_transformer_depth: int = 2,
 		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,  # noqa: ARG002
 		heads: int = 8,
-		learned_value_residual_mix: bool | None = None,
 		linear_transformer_depth: int = 0,
 		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
-		mc_hyper_conn_sinkhorn_iters: int | None = None,  # noqa: ARG002
 		mlp_expansion_factor: int = 4,
 		multi_stft_hop_size: int = 147,
 		multi_stft_normalized: bool = False,
@@ -239,8 +217,6 @@ class MelBandRoformer(Module):
 		multi_stft_window_fn: Callable[..., Tensor] = halfsineTensor,
 		norm_output: bool | None = None,
 		num_bands: int | None = None,
-		num_residual_fracs: int | None = None,  # noqa: ARG002
-		num_residual_streams: int = 1,
 		num_stems: int = 1,
 		sage_attention: bool = False,
 		sample_rate: float | None = None,
@@ -256,7 +232,6 @@ class MelBandRoformer(Module):
 		use_hyperACE: bool = False,
 		use_pope: bool = False,
 		use_torch_checkpoint: bool = False,
-		use_value_residual_learning: bool = False,
 		zero_dc: bool | None = None,
 	) -> None:
 		"""Configure the converged `MelBandRoformer` separator and its band-split front end.
@@ -308,10 +283,6 @@ class MelBandRoformer(Module):
 			front end.
 		heads : int = 8
 			Number of attention heads in each downstream attention block.
-		learned_value_residual_mix : bool | None = None
-			Toggle forwarded to downstream attention blocks for learned mixing of cached value
-			residuals. `True` forces the learned mix projection, `False` disables the learned mix
-			projection, and `None` keeps downstream behavior tied to `use_value_residual_learning`.
 		linear_transformer_depth : int = 0
 			Vestigial parameter retained after removal of the dedicated `LinearAttention` block.
 			Nonzero values still set the downstream compatibility flag, but current transformer code
@@ -330,9 +301,6 @@ class MelBandRoformer(Module):
 			static definitions [10].
 		match_input_audio_length : bool = True
 			When `True`, inverse STFT reconstruction is forced back to the original waveform length.
-		mc_hyper_conn_sinkhorn_iters : int | None = None
-			Compatibility parameter accepted for older configuration records. Current code does not
-			read `mc_hyper_conn_sinkhorn_iters`.
 		mlp_expansion_factor : int = 4
 			Hidden-width expansion factor inside each mask-estimator MLP.
 		multi_stft_hop_size : int = 147
@@ -357,14 +325,6 @@ class MelBandRoformer(Module):
 			provided and `num_bands` is `None`, `__init__` infers `num_bands` from
 			`mask_filter_bank.shape[0]`. When non-overlapping band-split mode is active, `__init__`
 			does not silently correct mismatches between `num_bands` and `freqs_per_bands`.
-		num_residual_fracs : int | None = None
-			Compatibility parameter accepted for older configuration records. Current code does not
-			read `num_residual_fracs`.
-		num_residual_streams : int = 1
-			Number of residual streams forwarded to downstream transformer blocks. Values above `1`
-			request multi-stream residual routing. When `use_value_residual_learning` also initializes
-			the outer wrapper stream helpers, `BandSplitRotator` stores `expand_stream` and
-			`reduce_stream`.
 		num_stems : int = 1
 			Number of configured output sources.
 		sage_attention : bool = False
@@ -397,6 +357,9 @@ class MelBandRoformer(Module):
 			inverse STFT.
 		time_transformer_depth : int = 2
 			Depth of the per-layer time-axis transformer block.
+		use_hyperACE: bool = False
+			Apply Hypergraph-based Adaptive Correlation Enhancement (HyperACE) to `MaskEstimator`.
+			https://arxiv.org/abs/2506.17733
 		use_pope : bool = False
 			Replace RoPE [3] with PoPE [4] in the downstream time-axis and frequency-axis attention
 			blocks.
@@ -404,10 +367,6 @@ class MelBandRoformer(Module):
 			Enable activation checkpointing for `self.band_split`, each transformer block, and each
 			mask-estimator head [11]. This option exists to ease memory-constrained training in
 			external frameworks such as Music-Source-Separation-Training [7].
-		use_value_residual_learning : bool = False
-			Enable value-residual reuse in downstream attention blocks after the first top-level layer
-			group. When `num_residual_streams > 1`, this option also initializes the stream-expansion
-			and stream-reduction helpers.
 		zero_dc : bool | None = None
 			Toggle zeroing of the DC (zero-frequency) bin before inverse STFT reconstruction. `None`
 			is a compatibility sentinel for configuration files that relied on historical
@@ -433,11 +392,11 @@ class MelBandRoformer(Module):
 			https://arxiv.org/abs/2410.02367
 		[7] ZFTurbo/Music-Source-Separation-Training
 			https://github.com/ZFTurbo/Music-Source-Separation-Training
-		[8] hunterFormsBS.bs_roformer.BSRoformer
+		[8] `hunterFormsBS.bs_roformer.BSRoformer`
 
-		[9] hunterFormsBS.mel_band_roformer.MelBandRoformer
+		[9] `MelBandRoformer`
 
-		[10] hunterFormsBS.make_static_mask_filter_bank
+		[10] `hunterFormsBS.make_static_mask_filter_bank`
 
 		[11] torch.utils.checkpoint.checkpoint
 			https://docs.pytorch.org/docs/stable/checkpoint.html
@@ -448,7 +407,6 @@ class MelBandRoformer(Module):
 
 		self.stereo: bool = stereo
 		self.audio_channels: int = 2 if self.stereo else 1
-		self.num_residual_streams: int = num_residual_streams
 		self.num_stems: int = num_stems
 		self.skip_connection: bool = skip_connection
 		self.use_torch_checkpoint: bool = use_torch_checkpoint
@@ -489,10 +447,8 @@ class MelBandRoformer(Module):
 			ff_mult=ff_mult,
 			flash_attn=flash_attn,
 			heads=heads,
-			learned_value_residual_mix=learned_value_residual_mix,
 			linear_attn=(0 < linear_transformer_depth),
 			norm_output=raiseIfNone(norm_output, f'I received {norm_output = }, but I need a type `bool` value or a "truthy" value.'),
-			num_residual_streams=self.num_residual_streams,
 			sage_attention=sage_attention,
 			scale=scale,
 		)
@@ -510,12 +466,10 @@ class MelBandRoformer(Module):
 
 		self.layers: ModuleList = ModuleList([
 			nn.ModuleList([
-				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed,
-					use_value_residual_learning=use_value_residual_learning and layer_index > 0, **transformer_kwargs)
-				, Transformer(depth=freq_transformer_depth, rotary_embed=freq_rotary_embed, pope_embed=freq_pope_embed,
-					use_value_residual_learning=use_value_residual_learning and layer_index > 0, **transformer_kwargs)
+				Transformer(depth=time_transformer_depth, rotary_embed=time_rotary_embed, pope_embed=time_pope_embed, **transformer_kwargs)
+				, Transformer(depth=freq_transformer_depth, rotary_embed=freq_rotary_embed, pope_embed=freq_pope_embed, **transformer_kwargs)
 			])
-			for layer_index in range(depth)
+			for _layer in loops(depth)
 		])
 
 		# stft
@@ -560,9 +514,6 @@ class MelBandRoformer(Module):
 		self.multi_stft: ParametersComputeLoss = ParametersComputeLoss(hop_length=multi_stft_hop_size, loss_weight=multi_stft_resolution_loss_weight,
 			n_fft=stft_n_fft, normalized=multi_stft_normalized, window_fn=multi_stft_window_fn, window_sizes=multi_stft_resolutions_window_sizes,
 		)
-
-		if use_value_residual_learning:
-			_init_hyper_conn, self.expand_stream, self.reduce_stream = get_init_and_expand_reduce_stream_functions(self.num_residual_streams, disable=self.num_residual_streams == 1)
 
 	def forward(self, raw_audio: Tensor, target: Tensor | None = None, active_stem_ids: list[int] | None = None, *, return_loss_breakdown: bool = False) -> Tensor | tuple[Tensor, tuple[Tensor, Tensor]]:
 		"""Separate `raw_audio` into stem waveform output or training loss.
@@ -614,15 +565,6 @@ class MelBandRoformer(Module):
 			the total loss. The inner pair contains the waveform L1 term and the unweighted
 			multi-resolution STFT loss term from `hunterFormsBS.bandSplit.lossComputation` [5].
 
-		See Also
-		--------
-		hunterFormsBS.bandSplit.lossComputation
-			Compute the waveform-domain loss and the multi-resolution STFT loss term.
-		hunterFormsBS.bs_roformer.BSRoformer
-			Specialized non-overlapping band-split `class`.
-		hunterFormsBS.mel_band_roformer.MelBandRoformer
-			Specialized overlapped mel-band `class`.
-
 		Execution stages
 		----------------
 		spectral analysis and band gathering : behavior
@@ -634,9 +576,7 @@ class MelBandRoformer(Module):
 		hierarchical attention core : behavior
 			Each top-level layer group applies one time-axis transformer block and one frequency-axis
 			transformer block. When `self.skip_connection` is `True`, each layer group adds stored
-			outputs from earlier layer groups before running the current group. When
-			`self.num_residual_streams != 1`, `forward` expands the residual-stream axis before the
-			stack and reduces the residual-stream axis after the stack.
+			outputs from earlier layer groups before running the current group.
 		mask accumulation : behavior
 			Each active mask-estimator head predicts one complex mask `Tensor` `masks` over the
 			gathered band view. When the front end uses overlapped mel bands [2], `forward`
@@ -681,7 +621,7 @@ class MelBandRoformer(Module):
 		[4] Gopalakrishnan, A., Csordás, R., Schmidhuber, J., & Mozer, M. C. (2025). Decoupling
 			the "What" and "Where" With Polar Coordinate Positional Embeddings.
 			https://arxiv.org/abs/2509.10534
-		[5] hunterFormsBS.bandSplit.lossComputation
+		[5] `hunterFormsBS.bandSplit.lossComputation`
 
 		[6] thu-ml/SageAttention
 			https://github.com/thu-ml/SageAttention
@@ -749,12 +689,6 @@ class MelBandRoformer(Module):
 			x = self.band_split(x)
 
 		# axial / hierarchical attention
-		time_v_residual: Tensor | None = None
-		freq_v_residual: Tensor | None = None
-
-		if self.num_residual_streams != 1:
-			x = self.expand_stream(x)
-
 		store: list[Tensor | None] = [None] * len(self.layers)
 		for i, transformer_block in enumerate(self.layers):
 			layer: ModuleList = cast('ModuleList', transformer_block)
@@ -769,43 +703,24 @@ class MelBandRoformer(Module):
 			x = rearrange(x, 'b t f d -> b f t d')
 			x, ps = pack([x], '* t d')
 
-			if self.num_residual_streams != 1:
-				if self.use_torch_checkpoint:
-					twoTupleTensors: tuple[Tensor, Tensor] = checkpoint(time_transformer, x, time_v_residual, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType, reportGeneralTypeIssues]
-					x, next_time_v_residual = twoTupleTensors
-				else:
-					x, next_time_v_residual = time_transformer(x, value_residual=time_v_residual)
-				time_v_residual = default(time_v_residual, next_time_v_residual)
-			else:  # noqa: PLR5501
-				if self.use_torch_checkpoint:
-					x = checkpoint(time_transformer, x, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
-				else:
-					x = time_transformer(x)
+			if self.use_torch_checkpoint:
+				x = checkpoint(time_transformer, x, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
+			else:
+				x = time_transformer(x)
 
 			(x,) = unpack(x, ps, '* t d')
 			x = rearrange(x, 'b f t d -> b t f d')
 			x, ps = pack([x], '* f d')
 
-			if self.num_residual_streams != 1:
-				if self.use_torch_checkpoint:
-					twoTupleTensors: tuple[Tensor, Tensor] = checkpoint(freq_transformer, x, freq_v_residual, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType, reportGeneralTypeIssues]
-					x, next_freq_v_residual = twoTupleTensors
-				else:
-					x, next_freq_v_residual = freq_transformer(x, value_residual=freq_v_residual)
-				freq_v_residual = default(freq_v_residual, next_freq_v_residual)
-			else:  # noqa: PLR5501
-				if self.use_torch_checkpoint:
-					x = checkpoint(freq_transformer, x, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
-				else:
-					x = freq_transformer(x)
+			if self.use_torch_checkpoint:
+				x = checkpoint(freq_transformer, x, use_reentrant=False)  # pyright: ignore[reportUnknownVariableType, reportAssignmentType]
+			else:
+				x = freq_transformer(x)
 
 			(x,) = unpack(x, ps, '* f d')
 
 			if self.skip_connection:
 				store[i] = x
-
-		if self.num_residual_streams != 1:
-			x = self.reduce_stream(x)
 
 		x = self.final_norm(x)
 

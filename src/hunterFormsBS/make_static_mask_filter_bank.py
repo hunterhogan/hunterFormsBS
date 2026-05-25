@@ -27,11 +27,11 @@ Functions
 
 References
 ----------
-[1] hunterFormsBS.bandSplitRotator.BandSplitRotator
+[1] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-[2] hunterFormsBS.bs_roformer.BSRoformer
+[2] `hunterFormsBS.bs_roformer.BSRoformer`
 
-[3] hunterFormsBS.mel_band_roformer.MelBandRoformer
+[3] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 
 [4] librosa.filters.mel - librosa
 	https://librosa.org/doc/main/generated/librosa.filters.mel.html
@@ -39,7 +39,7 @@ References
 [5] Installation instructions - librosa
 	https://librosa.org/doc/main/install.html
 
-[6] hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default
+[6] `hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default`
 """
 
 from __future__ import annotations
@@ -76,14 +76,9 @@ def filter_bank_non_overlapping(freqs_per_bands: Sequence[int], num_bands: int |
 		The function writes one `torch.tensor(dtype=torch.bool, data=...)` assignment that you can
 		paste into Python source as a static `mask_filter_bank` definition.
 
-	See Also
-	--------
-	print_static_mask
-		Print the compact `torch` source representation used by this module.
-
 	References
 	----------
-	[1] hunterFormsBS.make_static_mask_filter_bank.print_static_mask
+	[1] `print_static_mask`
 	"""
 	num_bands = num_bands or len(freqs_per_bands)
 	filter_bank: numpy.ndarray[tuple[int], numpy.dtype[numpy.int_]] = numpy.repeat(numpy.arange(num_bands), freqs_per_bands)
@@ -150,21 +145,16 @@ def librosa_filters_mel(
 		`sample_rate` and `sr` name the same `librosa.filters.mel` parameter. `stft_n_fft` and
 		`n_fft` name the same parameter. `num_bands` and `n_mels` name the same parameter.
 
-	See Also
-	--------
-	print_static_mask
-		Print the compact `torch` source representation used by this module.
-
 	References
 	----------
 	[1] librosa.filters.mel - librosa
 		https://librosa.org/doc/main/generated/librosa.filters.mel.html
-	[2] hunterFormsBS.make_static_mask_filter_bank.print_static_mask
+	[2] `print_static_mask`
 
 	[3] Installation instructions - librosa
 		https://librosa.org/doc/main/install.html
 
-	[4] hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default
+	[4] `hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default`
 	"""
 	from librosa import filters  # pyright: ignore[reportUnknownVariableType, reportMissingImports] # ty:ignore[unresolved-import]
 	sr = raiseIfNone(sr or sample_rate)

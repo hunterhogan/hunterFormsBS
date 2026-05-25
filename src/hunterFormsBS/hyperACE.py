@@ -52,7 +52,7 @@ Classes
 
 References
 ----------
-[1] hunterFormsBS.bandSplit.MaskEstimator
+[1] `hunterFormsBS.bandSplit.MaskEstimator`
 
 [2] Lei, M., Li, S., Wu, Y., Hu, H., Zhou, Y., Zheng, X., Ding, G., Du, S., Wu, Z.,
 	and Gao, Y. (2025). YOLOv13: Real-Time Object Detection with Hypergraph-Enhanced Adaptive Visual
@@ -183,11 +183,6 @@ class Conv(nn.Module):
 			`forward` expects `x` in `NCHW` layout because `Conv` stores one `nn.Conv2d` and one
 			`nn.InstanceNorm2d` [1]. The spatial size of `transformedTensor` follows the stride and
 			padding stored in `self.conv`.
-
-		See Also
-		--------
-		Conv
-			Store the layers and parameter choices used by `forward`.
 
 		References
 		----------
@@ -333,11 +328,6 @@ class DSConv(nn.Module):
 			`forward` applies one grouped `nn.Conv2d` with `groups == c1`, one pointwise `nn.Conv2d`,
 			one `nn.InstanceNorm2d`, and one activation module in `NCHW` layout [1].
 
-		See Also
-		--------
-		DSConv
-			Store the layers and parameter choices used by `forward`.
-
 		References
 		----------
 		[1] PyTorch.
@@ -436,11 +426,6 @@ class DS_Bottleneck(nn.Module):
 			`forward` applies the residual addition only when `self.shortcut` is `True`, which
 			requires the channel counts chosen in `DS_Bottleneck.__init__` to make `x` and the refined
 			tensor shape-compatible.
-
-		See Also
-		--------
-		DS_Bottleneck
-			Store the two inner `DSConv` blocks and the shortcut rule.
 
 		References
 		----------
@@ -547,11 +532,6 @@ class DS_C3k(nn.Module):
 			`forward` keeps the spatial axes unchanged and concatenates the transformed branch with
 			the lateral branch along channel axis `1` before the final `1 × 1` fusion convolution [1].
 
-		See Also
-		--------
-		DS_C3k
-			Store the branch projections and repeated `DS_Bottleneck` stack.
-
 		References
 		----------
 		[1] PyTorch.
@@ -644,12 +624,6 @@ class DS_C3k2(nn.Module):
 		refinedTensor : Tensor
 			Output tensor of shape `(batch, c2, height, width)`.
 
-		See Also
-		--------
-		DS_C3k2
-			Store the projection, refinement, and reprojection submodules.
-		DS_C3k
-			Implement the inner refinement stage.
 		"""
 		x_ = self.cv1(x)
 		x_ = self.m(x_)
@@ -755,13 +729,6 @@ class AdaptiveHyperedgeGeneration(nn.Module):
 			`torch.bmm(participationMatrix, x)` can aggregate one hyperedge feature tensor directly in
 			`HypergraphConvolution` [2].
 
-		See Also
-		--------
-		AdaptiveHyperedgeGeneration
-			Store the learnable prototypes and projection layers used by `forward`.
-		HypergraphConvolution
-			Consume `participationMatrix` for hypergraph message passing.
-
 		References
 		----------
 		[1] Lei, M., Li, S., Wu, Y., Hu, H., Zhou, Y., Zheng, X., Ding, G., Du, S., Wu, Z.,
@@ -815,11 +782,6 @@ class HypergraphConvolution(nn.Module):
 
 		where Y ≜ `updatedTensor`
 	```
-
-	See Also
-	--------
-	AdaptiveHyperedgeGeneration
-		Produce the participation matrix consumed by `HypergraphConvolution`.
 
 	References
 	----------
@@ -882,13 +844,6 @@ class HypergraphConvolution(nn.Module):
 			space [1]. When `out_channels == in_channels`, the residual addition `x + x_out` is
 			shape-compatible.
 
-		See Also
-		--------
-		AdaptiveHyperedgeGeneration
-			Produce the participation tensor consumed by `forward`.
-		HypergraphConvolution
-			Store the projection layers and activation used by `forward`.
-
 		References
 		----------
 		[1] PyTorch.
@@ -925,13 +880,6 @@ class AdaptiveHypergraphComputation(nn.Module):
 
 		where Y ≜ `refinedTensor`
 	```
-
-	See Also
-	--------
-	AdaptiveHyperedgeGeneration
-		Generate the adaptive participation matrix.
-	HypergraphConvolution
-		Apply hypergraph message passing with that participation matrix.
 
 	References
 	----------
@@ -995,13 +943,6 @@ class AdaptiveHypergraphComputation(nn.Module):
 			`forward` reshapes `x` from `NCHW` layout to `(batch, token_count, in_channels)` with
 			`token_count == height × width`, applies the adaptive hypergraph block, and then restores
 			`NCHW` layout by `permute` and `view` [1].
-
-		See Also
-		--------
-		AdaptiveHyperedgeGeneration
-			Compute the adaptive participation tensor.
-		HypergraphConvolution
-			Apply message passing in token space.
 
 		References
 		----------
@@ -1128,12 +1069,6 @@ class C3AH(nn.Module):
 		fusedTensor : Tensor
 			Output tensor of shape `(batch, c2, height, width)`.
 
-		See Also
-		--------
-		AdaptiveHypergraphComputation
-			Implement the adaptive-hypergraph branch.
-		C3AH
-			Store the branch projections and final fusion convolution.
 		"""
 		x_lateral = self.cv1(x)
 		x_ahc = self.ahc(self.cv2(x))
@@ -1199,13 +1134,6 @@ class HyperACE(nn.Module):
 		YOLOv13 applies HyperACE to three image-backbone stages [1]. This implementation first resizes
 		four encoder stages `B2`, `B3`, `B4`, and `B5` to the spatial resolution of `B4`, fuses them
 		with one `1 × 1` convolution, and then applies the same branch decomposition.
-
-	See Also
-	--------
-	C3AH
-		Implement the high-order branch block.
-	DS_C3k
-		Implement the low-order branch block.
 
 	References
 	----------
@@ -1380,15 +1308,6 @@ class HyperACE(nn.Module):
 			concatenation [1]. The returned `conditioningTensor` therefore lives on the `B4` spatial
 			grid.
 
-		See Also
-		--------
-		C3AH
-			Implement the high-order branch blocks.
-		DS_C3k
-			Implement the low-order branch blocks.
-		HyperACE
-			Store the branch partition and fusion layers used by `forward`.
-
 		References
 		----------
 		[1] PyTorch.
@@ -1527,13 +1446,6 @@ class Backbone(nn.Module):
 		where [B₂, B₃, B₄, B₅] ≜ `encoderStages`
 	```
 
-	See Also
-	--------
-	DSConv
-		Implement the stride-carrying downsampling blocks.
-	DS_C3k2
-		Implement the per-stage refinement blocks.
-
 	References
 	----------
 	[1] Lei, M., Li, S., Wu, Y., Hu, H., Zhou, Y., Zheng, X., Ding, G., Du, S., Wu, Z.,
@@ -1641,13 +1553,6 @@ class Backbone(nn.Module):
 			`forward` returns the stage tensors in shallow-to-deep order so downstream code can unpack
 			the list deterministically as `[p2, p3, p4, p5]`.
 
-		See Also
-		--------
-		HyperACE
-			Consume the returned stage list for multi-scale aggregation.
-		Decoder
-			Consume the returned stage list for coarse-to-fine decoding.
-
 		References
 		----------
 		[1] `HyperACE`
@@ -1706,13 +1611,6 @@ class Decoder(nn.Module):
 		where Y ≜ `decodedTensor`
 	```
 	'Resize' _sic_ [2 at Equation (12)]
-
-	See Also
-	--------
-	GatedFusion
-		Implement the per-stage FullPAD-style conditioning.
-	HyperACE
-		Produce the shared feature map injected into every decoder stage.
 
 	References
 	----------
@@ -1861,13 +1759,6 @@ class Decoder(nn.Module):
 			`forward` resizes coarse decoder states and the shared conditioning tensor to the spatial
 			sizes of the skip tensors with `F.interpolate(..., mode='bilinear')` before each fusion
 			step [1].
-
-		See Also
-		--------
-		GatedFusion
-			Inject the resized conditioning tensor at each decoder stage.
-		HyperACE
-			Produce the conditioning tensor consumed by `forward`.
 
 		References
 		----------
@@ -2070,10 +1961,6 @@ class FreqPixelShuffle(nn.Module):
 		where Y ≜ `upsampledTensor`
 	```
 
-	See Also
-	--------
-	TFC_TDF
-		Refine the frequency-expanded feature map.
 	"""
 
 	def __init__(
@@ -2168,11 +2055,6 @@ class FreqPixelShuffle(nn.Module):
 			permutes the tensor so that the extra channel factor becomes additional positions on the
 			last spatial axis. `contiguous()` makes the memory layout safe for the final `view` [1].
 
-		See Also
-		--------
-		TFC_TDF
-			Refine the frequency-expanded tensor.
-
 		References
 		----------
 		[1] PyTorch.
@@ -2217,10 +2099,6 @@ class ProgressiveUpsampleHead(nn.Module):
 		where Y ≜ `maskTensor`
 	```
 
-	See Also
-	--------
-	FreqPixelShuffle
-		Implement each progressive frequency upsampling stage.
 	"""
 
 	def __init__(
@@ -2364,11 +2242,6 @@ class ProgressiveUpsampleHead(nn.Module):
 			with `size=(x.shape[2], self.target_bins)` to preserve the time axis and correct only the
 			frequency axis [1].
 
-		See Also
-		--------
-		FreqPixelShuffle
-			Implement each progressive frequency-axis upsampling stage.
-
 		References
 		----------
 		[1] PyTorch.
@@ -2408,20 +2281,9 @@ class SegmModel(nn.Module):
 		where Y ≜ `mask_tensor`
 	```
 
-	See Also
-	--------
-	Backbone
-		Encode the band-split feature tensor into four stages.
-	HyperACE
-		Aggregate those encoder stages with adaptive hypergraph modeling.
-	Decoder
-		Decode the encoder stages with HyperACE conditioning.
-	ProgressiveUpsampleHead
-		Restore the target frequency resolution and emit output masks.
-
 	References
 	----------
-	[1] hunterFormsBS.bandSplit.MaskEstimator
+	[1] `hunterFormsBS.bandSplit.MaskEstimator`
 
 	[2] Lei, M., Li, S., Wu, Y., Hu, H., Zhou, Y., Zheng, X., Ding, G., Du, S., Wu, Z.,
 		and Gao, Y. (2025). YOLOv13: Real-Time Object Detection with Hypergraph-Enhanced Adaptive
@@ -2608,17 +2470,6 @@ class SegmModel(nn.Module):
 			grid. `forward` then uses `F.interpolate` with `size=(H, dec_feat.shape[-1])` to restore
 			the original time-axis length before `ProgressiveUpsampleHead` expands the frequency axis
 			[1].
-
-		See Also
-		--------
-		Backbone
-			Encode the input tensor into four stage tensors.
-		HyperACE
-			Aggregate the stage tensors into one conditioning tensor.
-		Decoder
-			Decode the stage tensors with HyperACE conditioning.
-		ProgressiveUpsampleHead
-			Expand the frequency axis to `out_bins` and emit the final mask channels.
 
 		References
 		----------

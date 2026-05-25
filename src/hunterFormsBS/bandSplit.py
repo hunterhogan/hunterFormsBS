@@ -84,22 +84,13 @@ class BandSplit(Module):
 		Per-band projection module collection. Each entry transforms one slice width from `dim_inputs`
 		to the shared feature width configured in `__init__`.
 
-	See Also
-	--------
-	hunterFormsBS.bandSplitRotator.BandSplitRotator
-		Unified separator that uses `BandSplit` as the band front end.
-	hunterFormsBS.bs_roformer.BSRoformer
-		Non-overlapping wrapper that uses `BandSplit` for the front-end projection.
-	hunterFormsBS.mel_band_roformer.MelBandRoformer
-		Overlapped mel-band wrapper that uses `BandSplit` for the front-end projection.
-
 	References
 	----------
-	[1] hunterFormsBS.bandSplitRotator.BandSplitRotator
+	[1] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-	[2] hunterFormsBS.bs_roformer.BSRoformer
+	[2] `hunterFormsBS.bs_roformer.BSRoformer`
 
-	[3] hunterFormsBS.mel_band_roformer.MelBandRoformer
+	[3] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 	"""
 	def __init__(self, dim: int, dim_inputs: Sequence[int]) -> None:
 		"""Configure one projection module per input band.
@@ -245,11 +236,11 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 		Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
 	[2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
 		Transcription https://arxiv.org/abs/2409.04702
-	[3] hunterFormsBS.bandSplitRotator.BandSplitRotator
+	[3] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-	[4] hunterFormsBS.bs_roformer.BSRoformer
+	[4] `hunterFormsBS.bs_roformer.BSRoformer`
 
-	[5] hunterFormsBS.mel_band_roformer.MelBandRoformer
+	[5] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 
 	[6] torch.nn.functional.l1_loss - PyTorch
 		https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.l1_loss.html
@@ -302,8 +293,8 @@ class MaskEstimator(Module):
 	[1] later reshapes the concatenated output into real and imaginary mask values and, for
 	overlapped band layouts, performs the overlap averaging step outside `MaskEstimator` [1][3].
 	`MaskEstimator` corresponds to the multi-band mask-estimation family from BS-RoFormer [2] and the
-	embedding-projection family from Mel-RoFormer [3]. Each band head uses
-	`hunterFormsBS.bandSplit.MLP` [4] as the affine block before the final gate.
+	embedding-projection family from Mel-RoFormer [3]. Each band head uses `MLP` [4] as the affine
+	block before the final gate.
 
 	Attributes
 	----------
@@ -313,19 +304,12 @@ class MaskEstimator(Module):
 		Per-band projection head collection. Each head maps one `dim`-wide band token to one
 		band-local output segment whose width is given by `dim_inputs`.
 
-	See Also
-	--------
-	hunterFormsBS.bandSplit.MLP
-		Build the band-local affine block used before the final gate in each head.
-	hunterFormsBS.bandSplitRotator.BandSplitRotator
-		Use `MaskEstimator` as one separator head inside the full model.
-
 	Implementation boundary
 	-----------------------
 	band-head operators : behavior
-		`MaskEstimator` stores the band-local affine stack from `hunterFormsBS.bandSplit.MLP` [4] and
-		the final gated output stage [6]. Any upstream normalization such as `RMSNorm` [5] must happen
-		before `MaskEstimator` receives band token `Tensor` `x`.
+		`MaskEstimator` stores the band-local affine stack from `MLP` [4] and the final gated output
+		stage [6]. Any upstream normalization such as `RMSNorm` [5] must happen before `MaskEstimator`
+		receives band token `Tensor` `x`.
 	package default head template : behavior
 		When `depth = 1`, `mlp_expansion_factor = 4`, and `activation` is the hyperbolic tangent
 		activation, `MaskEstimator` matches the default hidden-width and activation pattern used by the
@@ -333,14 +317,14 @@ class MaskEstimator(Module):
 
 	References
 	----------
-	[1] hunterFormsBS.bandSplitRotator.BandSplitRotator
+	[1] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
 	[2] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation
 		with Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
 	[3] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
 		Transcription https://arxiv.org/abs/2409.04702
 
-	[4] hunterFormsBS.bandSplit.MLP
+	[4] `MLP`
 
 	[5] Zhang, B., & Sennrich, R. (2019). Root Mean Square Layer Normalization.
 		https://papers.nips.cc/paper_files/paper/2019/hash/1e8a19426224ca89e83cef47f1e7f53b-Abstract.html
@@ -537,7 +521,7 @@ class MaskEstimator(Module):
 			with Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
 		[2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
 			Transcription https://arxiv.org/abs/2409.04702
-		[3] hunterFormsBS.bandSplitRotator.BandSplitRotator
+		[3] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
 		[4] Zhang, B., & Sennrich, R. (2019). Root Mean Square Layer Normalization.
 			https://papers.nips.cc/paper_files/paper/2019/hash/1e8a19426224ca89e83cef47f1e7f53b-Abstract.html
@@ -569,8 +553,8 @@ def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1
 
 	You can use `MLP` to create one `nn.Sequential` made of linear layers with one intermediate
 	activation after every non-final linear layer. `MLP` does not apply normalization or output gating
-	by itself. `hunterFormsBS.bandSplit.MaskEstimator` [1] uses `MLP` as the band-local affine block
-	before the final gate in the BS-RoFormer [2] and Mel-RoFormer [3] mask heads.
+	by itself. `MaskEstimator` [1] uses `MLP` as the band-local affine block before the final gate in
+	the BS-RoFormer [2] and Mel-RoFormer [3] mask heads.
 
 	Parameters
 	----------
@@ -617,8 +601,7 @@ def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1
 		h = φ(W₁ x + b₁)
 		g = W₂ h + b₂
 
-		where  g ≜ affine output returned by `MLP` before the later gate in
-			`hunterFormsBS.bandSplit.MaskEstimator`
+		where  g ≜ affine output returned by `MLP` before the later gate in `MaskEstimator`
 	```
 
 	Layer Construction
@@ -627,14 +610,9 @@ def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1
 		`MLP` instantiates a fresh `activation()` module after each non-final linear layer. `MLP` does
 		not append an activation after the last linear layer.
 
-	See Also
-	--------
-	hunterFormsBS.bandSplit.MaskEstimator
-		Use `MLP` as the band-local affine block before the final gate.
-
 	References
 	----------
-	[1] hunterFormsBS.bandSplit.MaskEstimator
+	[1] `MaskEstimator`
 
 	[2] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation
 		with Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
