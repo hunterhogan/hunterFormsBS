@@ -210,12 +210,11 @@ wheels = [
 
 [[package]]
 name = "hunterformsbs"
-version = "0.1.5"
+version = "0.1.7"
 source = { editable = "." }
 dependencies = [
     { name = "einops" },
     { name = "huntermakespy" },
-    { name = "hyper-connections" },
     { name = "more-itertools" },
     { name = "opt-einsum" },
     { name = "packaging" },
@@ -239,7 +238,6 @@ testing = [
 requires-dist = [
     { name = "einops", specifier = ">=0.8.2" },
     { name = "huntermakespy" },
-    { name = "hyper-connections", specifier = ">=0.4.10" },
     { name = "more-itertools" },
     { name = "opt-einsum", specifier = ">=3.4.0" },
     { name = "packaging" },
@@ -270,20 +268,6 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/5b/73/ff7e8c87cd4184559b172b7831e8721f1aba1d58e16c041530023e3c77f4/huntermakespy-0.5.5.tar.gz", hash = "sha256:c039c542ff09b9fa867965d8439f6609f2281f53e32bef537234671b89fcd9be", size = 842799, upload-time = "2026-05-10T20:48:56.089Z" }
-
-[[package]]
-name = "hyper-connections"
-version = "0.4.11"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "einops" },
-    { name = "torch" },
-    { name = "torch-einops-utils" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/86/2e/47f00583d958527f006459e0e769aa3b20dc61b7b1916df1fa0b9820a192/hyper_connections-0.4.11.tar.gz", hash = "sha256:d4f852733cf8595b2b15e81597ec0ce931907f284a812272c03edea0a4ef12e3", size = 17864, upload-time = "2026-05-13T18:28:47.553Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/42/2d/23143d9e5af1b6a2e7ed4e5f88a6c0cbf7587563acb8f15a740b726ce07f/hyper_connections-0.4.11-py3-none-any.whl", hash = "sha256:92a8d24340ef6dbf2a356b1f2e74ebb877d680aa96afc6f9f1cff636ab2e55f0", size = 29558, upload-time = "2026-05-13T18:28:46.304Z" },
-]
 
 [[package]]
 name = "iniconfig"
@@ -933,19 +917,6 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/03/ea/9c139bf87598eece34dfb14320ec1149512655bdcbfdcbcadbccace467fb/torch_einops_kit-0.1.5.tar.gz", hash = "sha256:f658dbcefc4b2384eb70e1ef472d1e6293640a9190a581686c84a761f3e10e2b", size = 57522, upload-time = "2026-05-17T07:51:07.08Z" }
-
-[[package]]
-name = "torch-einops-utils"
-version = "0.1.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "einops" },
-    { name = "torch" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/91/7a/9f899a9752b49f6b7a2ec34ed861a94f7b12b1ae3678a6e930b2e8f6d816/torch_einops_utils-0.1.0.tar.gz", hash = "sha256:3bcc4295b0f3a698d124ca4024b38d15f4c832f70b9388f4fad5d86d1e97504c", size = 10412, upload-time = "2026-05-16T18:05:05.641Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f3/14/482536278a9a21bf7a66fa473b997c679d39419b9770a039e8f089586966/torch_einops_utils-0.1.0-py3-none-any.whl", hash = "sha256:e48d3f5c7d74b81e6053d68e79857ff4c43259f0b455bba8e1fd69f99bc22340", size = 7934, upload-time = "2026-05-16T18:05:04.255Z" },
-]
 
 [[package]]
 name = "torchaudio"
