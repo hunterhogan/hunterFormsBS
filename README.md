@@ -328,6 +328,7 @@ imports so the main namespace remains small and optional dependencies stay optio
 - [pytorch/pytorch](https://github.com/pytorch/pytorch)
   - [official documentation](https://docs.pytorch.org/docs/)
   - [context7](https://context7.com/pytorch/pytorch)
+  - [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/Ansel_PyTorch_2_Faster_2024.bib)
 - [ZFTurbo/Music-Source-Separation-Training](https://github.com/ZFTurbo/Music-Source-Separation-Training)
   - [context7](https://context7.com/zfturbo/music-source-separation-training)
 - [lucidrains/torch-einops-utils](https://github.com/lucidrains/torch-einops-utils)
