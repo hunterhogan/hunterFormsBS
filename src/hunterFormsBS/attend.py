@@ -3,14 +3,12 @@
 
 You can use this module to assemble the unified attention stack shared by `BandSplitRotator`,
 `BSRoformer`, and `MelBandRoformer` [1][2][3]. The constructor parameter names stay aligned across the
-stack so wrapper classes can pass settings such as `attn_dropout`, `flash_attn`, `sage_attention`,
-`scale`, and value-residual-learning switches downstream without renaming [1][2][3]. `Attend`
-evaluates attention from precomputed query, key, and value arrays and can dispatch to an explicit
-implementation, to PyTorch SDPA [4], or to SageAttention [5][6]. `Attention` projects activations into
-query, key, and value arrays, applies RoPE [7] or PoPE [8], optionally mixes a learned value residual,
-and then calls `Attend`. `FeedForward` applies the position-wise expansion-and-projection block paired
-with each attention block. `Transformer` stacks repeated `Attention` and `FeedForward` pairs and
-optionally installs multi-stream residual adapters for the wrapper models [1][2][3].
+stack so outer model classes can pass settings such as `attn_dropout`, `flash_attn`, `sage_attention`, and
+`scale` [1][2][3]. `Attend` evaluates attention from precomputed query, key, and value arrays and can
+dispatch to an explicit implementation, to PyTorch SDPA [4], or to SageAttention [5][6]. `Attention`
+projects activations into query, key, and value arrays, applies RoPE [7] or PoPE [8], and then calls
+`Attend`. `FeedForward` applies the position-wise expansion-and-projection block paired with each
+attention block. `Transformer` stacks repeated `Attention` and `FeedForward` pairs [1][2][3].
 
 Contents
 --------
@@ -26,11 +24,11 @@ Classes
 
 References
 ----------
-[1] hunterFormsBS.bandSplitRotator.BandSplitRotator
+[1] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-[2] hunterFormsBS.bs_roformer.BSRoformer
+[2] `hunterFormsBS.bs_roformer.BSRoformer`
 
-[3] hunterFormsBS.mel_band_roformer.MelBandRoformer
+[3] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 
 [4] PyTorch.
 	https://context7.com/pytorch/pytorch
@@ -49,17 +47,15 @@ from __future__ import annotations
 
 from einops import rearrange
 from hunterFormsBS.theTypes import FlashAttentionConfig, ParametersAttention
-from hunterMakesPy import raiseIfNone
-from hyper_connections import get_init_and_expand_reduce_stream_functions  # NOTE There is a newer version.
 from more_itertools import loops
 from operator import neg
 from packaging import version
 from PoPE_pytorch import flash_attn_with_pope, PoPE
 from torch import einsum, nn, Tensor
 from torch.nn import Module, ModuleList
-from torch_einops_kit import default, exists, once
+from torch_einops_kit import exists, once
 from torch_einops_kit.scaleValues import RMSNorm
-from typing import Any, cast, overload, TYPE_CHECKING
+from typing import Any, cast, TYPE_CHECKING
 import torch
 import torch.nn.functional as F
 
@@ -98,14 +94,9 @@ class Attend(nn.Module):
 	scale : float = q.shape[-1] ** -0.5
 		Attention-score multiplier used in every backend.
 
-	See Also
-	--------
-	Attention
-		Project model activations into query, key, and value arrays for multi-head attention.
-
 	References
 	----------
-	[1] hunterFormsBS.attend.Attention
+	[1] `Attention`
 
 	[2] Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L.,
 		Gomez, A. N., Kaiser, Ł., and Polosukhin, I. (2017). Attention Is All You Need.
@@ -117,7 +108,7 @@ class Attend(nn.Module):
 		https://arxiv.org/abs/2410.02367
 	[5] thu-ml/SageAttention
 		https://github.com/thu-ml/SageAttention
-	[6] hunterFormsBS.theTypes.FlashAttentionConfig
+	[6] `hunterFormsBS.theTypes.FlashAttentionConfig`
 	"""
 
 	def __init__(self, attn_dropout: float, scale: float, *, flash: bool = False, sage_attention: bool = False) -> None:
@@ -247,7 +238,7 @@ class Attend(nn.Module):
 
 		References
 		----------
-		[1] hunterFormsBS.attend.Attend.forward
+		[1] `Attend.forward`
 
 		[2] Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L.,
 			Gomez, A. N., Kaiser, Ł., and Polosukhin, I. (2017). Attention Is All You Need.
@@ -329,7 +320,7 @@ class Attend(nn.Module):
 			https://arxiv.org/abs/2410.02367
 		[2] thu-ml/SageAttention
 			https://github.com/thu-ml/SageAttention
-		[3] hunterFormsBS.attend.Attend.flash_attn
+		[3] `Attend.flash_attn`
 
 		[4] Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L.,
 			Gomez, A. N., Kaiser, Ł., and Polosukhin, I. (2017). Attention Is All You Need.
@@ -357,24 +348,19 @@ class Attention(nn.Module):
 	information from other sequence positions before the next block. `Attention` projects activation
 	`Tensor` `x` into query `Tensor` `q`, key `Tensor` `k`, and value `Tensor` `v`, applies PoPE
 	[1][2] or RoPE [3] when those position encoders are available, and aggregates the result through
-	`Attend` [4]. `Attention` can also mix an incoming value residual into value `Tensor` `v` before
-	attention and can return the unmixed value `Tensor` so outer stacks such as `Transformer` [5],
-	`BandSplitRotator` [6], `BSRoformer` [7], and `MelBandRoformer` [8] can thread the value residual
-	through multiple blocks.
+	`Attend` [4].
 
 	PyTorch
 	-------
 	module structure : implementation detail
 		`Attention` applies `RMSNorm` to the input activations, projects the normalized activations
 		with `to_qkv`, reshapes the projected result into head-specific query `Tensor` `q`, key
-		`Tensor` `k`, and value `Tensor` `v`, and then chooses one of three execution paths. When
-		`self.learned_value_residual_mix` is not `None` and `value_residual` is provided, `Attention`
-		computes a sigmoid mixing factor and linearly interpolates `v` toward `value_residual`.
+		`Tensor` `k`, and value `Tensor` `v`, and then chooses one of three execution paths.
 		`Attention` calls `flash_attn_with_pope` [2] when `pope_embed` is available, rotates query
 		`Tensor` `q` and key `Tensor` `k` before `Attend` [4] when `rotary_embed` is available, and
 		otherwise delegates directly to `Attend` [4]. After aggregation, `Attention` multiplies each
-		head output by a sigmoid gate from `to_gates`, concatenates the gated head outputs, applies
-		`to_out`, and optionally returns the pre-mixed value `Tensor`.
+		head output by a sigmoid gate from `to_gates`, concatenates the gated head outputs, and
+		applies `to_out`.
 
 	Attributes
 	----------
@@ -382,8 +368,6 @@ class Attention(nn.Module):
 		Exact attention core used when `pope_embed` is `None` [4].
 	heads : int
 		Number of attention heads.
-	learned_value_residual_mix : nn.Linear | None
-		Optional projection that computes one value-residual mixing factor per head.
 	norm : RMSNorm
 		Root-mean-square normalization module applied before the projections.
 	pope_embed : PoPE | None
@@ -400,15 +384,6 @@ class Attention(nn.Module):
 		Projection layer implemented with `nn.Linear` [9] to produce concatenated query, key, and
 		value features.
 
-	See Also
-	--------
-	Attend
-		Aggregate precomputed query, key, and value arrays.
-	FeedForward
-		Apply the position-wise sublayer that follows `Attention` inside `Transformer`.
-	Transformer
-		Stack `Attention` and `FeedForward` blocks with residual logic.
-
 	References
 	----------
 	[1] Gopalakrishnan, A., Csordás, R., Schmidhuber, J., and Mozer, M. C. (2025).
@@ -416,18 +391,17 @@ class Attention(nn.Module):
 		https://arxiv.org/abs/2509.10534
 	[2] lucidrains/PoPE-pytorch.
 		https://github.com/lucidrains/PoPE-pytorch
-	[3] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., and Liu, Y. (2021).
-		RoFormer: Enhanced Transformer with Rotary Position Embedding.
-		https://arxiv.org/abs/2104.09864
-	[4] hunterFormsBS.attend.Attend
+	[3] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., and Liu, Y. (2021). RoFormer: Enhanced
+		Transformer with Rotary Position Embedding. https://arxiv.org/abs/2104.09864
+	[4] `Attend`
 
-	[5] hunterFormsBS.attend.Transformer
+	[5] `Transformer`
 
-	[6] hunterFormsBS.bandSplitRotator.BandSplitRotator
+	[6] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-	[7] hunterFormsBS.bs_roformer.BSRoformer
+	[7] `hunterFormsBS.bs_roformer.BSRoformer`
 
-	[8] hunterFormsBS.mel_band_roformer.MelBandRoformer
+	[8] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 
 	[9] PyTorch.
 		https://context7.com/pytorch/pytorch
@@ -444,17 +418,12 @@ class Attention(nn.Module):
 		*,
 		flash: bool = True,
 		sage_attention: bool = False,
-		use_value_residual_learning: bool = False,
-		learned_value_residual_mix: bool | None = None,
 	) -> None:
 		"""Set up an attention block for a chosen width and head layout.
 
 		You can use `__init__` to choose the feature width, head layout, dropout probability,
-		position-encoding path, attention backend, and optional value-residual-learning path for the
-		block. `__init__` stores the resulting submodules so later calls to `forward` can reuse the
-		same attention block. `__init__` also preserves the compatibility switch
-		`learned_value_residual_mix` so wrapper classes can forward older configuration names without
-		translation [1][2][3].
+		position-encoding path, and attention backend for the block. `__init__` stores the resulting
+		submodules so later calls to `forward` can reuse the same attention block.
 
 		PyTorch
 		-------
@@ -464,9 +433,7 @@ class Attention(nn.Module):
 			sage_attention=sage_attention)` [4], instantiates `RMSNorm(dim)`, and constructs `to_qkv =
 			nn.Linear(dim, dim_inner * 3, bias=False)`, `to_gates = nn.Linear(dim, heads)`, and
 			`to_out = nn.Sequential(nn.Linear(dim_inner, dim, bias=False), nn.Dropout(attn_dropout))`
-			[5]. When `use_value_residual_learning` is `True` and `learned_value_residual_mix` is
-			`None`, or when `learned_value_residual_mix` is `True`, `__init__` also creates
-			`self.learned_value_residual_mix = nn.Linear(dim, heads)` [5].
+			[5].
 
 		Parameters
 		----------
@@ -493,21 +460,16 @@ class Attention(nn.Module):
 		sage_attention : bool = False
 			Whether `Attend` [4] should prefer SageAttention [9][10]. `hunterFormsBS` does not install
 			`sageattention`.
-		use_value_residual_learning : bool = False
-			Whether `__init__` should create `self.learned_value_residual_mix` for `forward`.
-		learned_value_residual_mix : bool | None = None
-			Compatibility switch kept for older configuration files. `True` also creates
-			`self.learned_value_residual_mix`.
 
 		References
 		----------
-		[1] hunterFormsBS.bandSplitRotator.BandSplitRotator
+		[1] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-		[2] hunterFormsBS.bs_roformer.BSRoformer
+		[2] `hunterFormsBS.bs_roformer.BSRoformer`
 
-		[3] hunterFormsBS.mel_band_roformer.MelBandRoformer
+		[3] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 
-		[4] hunterFormsBS.attend.Attend
+		[4] `Attend`
 
 		[5] PyTorch.
 			https://context7.com/pytorch/pytorch
@@ -516,9 +478,8 @@ class Attention(nn.Module):
 			https://arxiv.org/abs/2509.10534
 		[7] lucidrains/PoPE-pytorch.
 			https://github.com/lucidrains/PoPE-pytorch
-		[8] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., and Liu, Y. (2021).
-			RoFormer: Enhanced Transformer with Rotary Position Embedding.
-			https://arxiv.org/abs/2104.09864
+		[8] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., and Liu, Y. (2021). RoFormer: Enhanced
+			Transformer with Rotary Position Embedding. https://arxiv.org/abs/2104.09864
 		[9] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., and Chen, J. (2025).
 			SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration.
 			https://arxiv.org/abs/2410.02367
@@ -541,62 +502,33 @@ class Attention(nn.Module):
 		self.to_qkv: nn.Linear = nn.Linear(in_features=dim, out_features=dim_inner * 3, bias=False)
 		self.to_out: nn.Sequential = nn.Sequential(nn.Linear(in_features=dim_inner, out_features=dim, bias=False), nn.Dropout(attn_dropout))
 
-		self.learned_value_residual_mix: nn.Linear | None = None
-
-		if ((use_value_residual_learning is True and learned_value_residual_mix is None)
-			or (learned_value_residual_mix is True)):
-			self.learned_value_residual_mix = nn.Linear(dim, self.heads)
-
-		"""Original code because I have not tested the new code:
-		if exists(learned_value_residual_mix):
-			use_value_residual_learning = learned_value_residual_mix
-
-		self.learned_value_residual_mix = nn.Linear(dim, self.heads) if use_value_residual_learning else None"""
-
-	@overload
-	def forward(self, x: Tensor, value_residual: None = None) -> Tensor: ...
-	@overload
-	def forward(self, x: Tensor, value_residual: Tensor) -> tuple[Tensor, Tensor | None]: ...
-	def forward(self, x: Tensor, value_residual: Tensor | None = None) -> Tensor | tuple[Tensor, Tensor | None]:
+	def forward(self, x: Tensor) -> Tensor:
 		"""Compute gated multi-head attention output from activations `x`.
 
 		You can use `forward` to normalize activations `x`, project activation `Tensor` `x` into query
-		`Tensor` `q`, key `Tensor` `k`, and value `Tensor` `v`, optionally mix `value_residual` into
-		value `Tensor` `v` with a learned per-head gate, inject position through `pope_embed` [1][2]
-		or `rotary_embed` [3], aggregate value `Tensor` `v` through `Attend.forward` [4] or the
-		PoPE-specific flash-attention path [2], and return the gated, concatenated, projected result.
-		When `value_residual` is not `None`, `forward` also returns the unmixed value `Tensor`
-		captured before the residual mix so outer stacks such as `Transformer` [5] and
-		`BandSplitRotator` [6] can reuse that value in later blocks.
+		`Tensor` `q`, key `Tensor` `k`, and value `Tensor` `v`, inject position through
+		`pope_embed` [1][2] or `rotary_embed` [3], aggregate value `Tensor` `v` through
+		`Attend.forward` [4] or the PoPE-specific flash-attention path [2], and return the gated,
+		concatenated, projected result.
 
 		Parameters
 		----------
 		x : Tensor
 			Input activation `Tensor` with shape `batch × sequence position × feature`.
-		value_residual : Tensor | None = None
-			Optional value `Tensor` from an earlier block. `forward` uses `value_residual` only when
-			`self.learned_value_residual_mix` is not `None`.
 
 		Returns
 		-------
-		out : Tensor | tuple[Tensor, Tensor | None]
-			When `value_residual` is `None`, `out` is the output activation `Tensor` with shape `batch
-			× sequence position × feature`. When `value_residual` is not `None`, `out` is `(out,
-			original_values)`, where `original_values` is the pre-mixed value `Tensor`.
+		out : Tensor
+			Output activation `Tensor` with shape `batch × sequence position × feature`.
 
 		Mathematics
 		-----------
 		gated multi-head attention : equation
 		```
 			Let H ≜ `self.heads`,  α ≜ `self.scale`,
-				X ≜ `self.norm(x)`,  Q ≜ `q`,  K ≜ `k`,  V₀ ≜ `original_values`,
-				R ≜ `value_residual`,  Λ ≜ `self.learned_value_residual_mix`,
-				M ≜ σ(rearrange(Λ(X), 'b n h -> b h n 1')),
+				X ≜ `self.norm(x)`,  Q ≜ `q`,  K ≜ `k`,  V ≜ `v`,
 				wₕᴳ ≜ `to_gates`.weight[h, :],  h ∈ {0, …, H−1},
 				Wᴼ ≜ `to_out[0]`.weight
-
-			Λ = ∅ ∨ R = ∅  ⟹  V = V₀
-			Λ ≠ ∅ ∧ R ≠ ∅  ⟹  V = (1 − M) ⊙ V₀ + M ⊙ R
 
 			S[b, h, i, j] = ⟨Q[b, h, i, :], K[b, h, j, :]⟩ · α
 			A[b, h, i, j] = exp(S[b, h, i, j]) / ∑ₘ exp(S[b, h, i, m])
@@ -631,11 +563,11 @@ class Attention(nn.Module):
 		[3] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., and Liu, Y. (2021).
 			RoFormer: Enhanced Transformer with Rotary Position Embedding.
 			https://arxiv.org/abs/2104.09864
-		[4] hunterFormsBS.attend.Attend.forward
+		[4] `Attend.forward`
 
-		[5] hunterFormsBS.attend.Transformer
+		[5] `Transformer`
 
-		[6] hunterFormsBS.bandSplitRotator.BandSplitRotator
+		[6] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
 		[7] Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L.,
 			Gomez, A. N., Kaiser, Ł., and Polosukhin, I. (2017). Attention Is All You Need.
@@ -644,13 +576,6 @@ class Attention(nn.Module):
 		x = self.norm(x)
 
 		q, k, v = rearrange(self.to_qkv(x), 'b n (qkv h d) -> qkv b h n d', qkv=3, h=self.heads)
-
-		original_values: Tensor = v
-
-		if exists(self.learned_value_residual_mix):
-			mix: Tensor = self.learned_value_residual_mix(x)
-			mix = rearrange(mix, 'b n h -> b h n 1').sigmoid()
-			v: Tensor = v.lerp(raiseIfNone(value_residual), mix)
 
 		if exists(self.pope_embed):
 			out: Tensor = flash_attn_with_pope(q, k, v, pos_emb=self.pope_embed(q.shape[-2]), softmax_scale=self.scale)
@@ -666,10 +591,7 @@ class Attention(nn.Module):
 		out *= rearrange(gates, 'b n h -> b h n 1').sigmoid()
 
 		out = rearrange(out, 'b h n d -> b n (h d)')
-		out = self.to_out(out)
-		if exists(value_residual):
-			return (out, original_values)
-		return out
+		return self.to_out(out)
 
 class FeedForward(Module):
 	"""Transform activations with a position-wise expansion-and-projection block.
@@ -687,24 +609,17 @@ class FeedForward(Module):
 		Position-wise submodule sequence containing root-mean-square normalization, width expansion,
 		`nn.GELU`, `ff_dropout`, width projection, and output `ff_dropout` [6].
 
-	See Also
-	--------
-	Attention
-		Provide the sequence-mixing sublayer that precedes `FeedForward` inside `Transformer`.
-	Transformer
-		Stack `Attention` with `FeedForward` and residual logic.
-
 	References
 	----------
-	[1] hunterFormsBS.attend.Attention
+	[1] `Attention`
 
-	[2] hunterFormsBS.attend.Transformer
+	[2] `Transformer`
 
-	[3] hunterFormsBS.bandSplitRotator.BandSplitRotator
+	[3] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-	[4] hunterFormsBS.bs_roformer.BSRoformer
+	[4] `hunterFormsBS.bs_roformer.BSRoformer`
 
-	[5] hunterFormsBS.mel_band_roformer.MelBandRoformer
+	[5] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 
 	[6] PyTorch.
 		https://context7.com/pytorch/pytorch
@@ -737,7 +652,7 @@ class FeedForward(Module):
 
 		References
 		----------
-		[1] hunterFormsBS.attend.Transformer
+		[1] `Transformer`
 
 		[2] PyTorch.
 			https://context7.com/pytorch/pytorch
@@ -777,7 +692,7 @@ class FeedForward(Module):
 
 		References
 		----------
-		[1] hunterFormsBS.attend.Transformer
+		[1] `Transformer`
 		"""
 		return self.net(x)
 
@@ -786,11 +701,10 @@ class Transformer(Module):
 
 	You can use `Transformer` as the shared sequence stack inside `BandSplitRotator` [1], `BSRoformer`
 	[2], and `MelBandRoformer` [3]. `Transformer` takes activation `Tensor` `x`, repeats `depth` pairs
-	of `Attention` [4] and `FeedForward` [5], optionally installs multi-stream residual adapters, and
-	optionally normalizes the result. `Transformer` preserves the batch axis, sequence axis, and
-	feature axis of activation `Tensor` `x`. The constructor still accepts several compatibility
-	parameters from older wrapper configurations, but the stack itself no longer contains
-	`LinearAttention`.
+	of `Attention` [4] and `FeedForward` [5], and optionally normalizes the result. `Transformer`
+	preserves the batch axis, sequence axis, and feature axis of activation `Tensor` `x`. The
+	constructor still accepts several compatibility parameters, but the stack itself no longer
+	contains `LinearAttention`.
 
 	Attributes
 	----------
@@ -801,24 +715,17 @@ class Transformer(Module):
 		Final output normalization module applied after the last residual block when `norm_output` is
 		`True`, or `nn.Identity` otherwise.
 
-	See Also
-	--------
-	Attention
-		Provide the default sequence-position attention branch used by `Transformer`.
-	FeedForward
-		Provide the position-wise feature transform paired with each attention layer.
-
 	References
 	----------
-	[1] hunterFormsBS.bandSplitRotator.BandSplitRotator
+	[1] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-	[2] hunterFormsBS.bs_roformer.BSRoformer
+	[2] `hunterFormsBS.bs_roformer.BSRoformer`
 
-	[3] hunterFormsBS.mel_band_roformer.MelBandRoformer
+	[3] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 
-	[4] hunterFormsBS.attend.Attention
+	[4] `Attention`
 
-	[5] hunterFormsBS.attend.FeedForward
+	[5] `FeedForward`
 	"""
 	def __init__(
 		self,
@@ -831,27 +738,21 @@ class Transformer(Module):
 		ff_mult: float | None = 4,
 		flash_attn: bool = True,
 		heads: int = 8,
-		learned_value_residual_mix: bool | None = None,
 		linear_attn: bool = False,  # noqa: ARG002
-		mc_hyper_conn_sinkhorn_iters: int | None = None,  # noqa: ARG002
 		norm_output: bool = True,
-		num_residual_fracs: int | None = None,  # noqa: ARG002
-		num_residual_streams: int = 1,
 		pope_embed: PoPE | None = None,
 		rotary_embed: RotaryEmbedding | None = None,
 		sage_attention: bool = False,
 		scale: float | None = None,
-		use_value_residual_learning: bool = False,
 	) -> None:
 		"""Set up a transformer stack for feature width `dim` and layer count `depth`.
 
 		You can use `__init__` to choose the stack depth, model width, attention-head layout, dropout
-		probabilities, attention backend, position-encoding path, and residual-stream behavior for a
+		probabilities, attention backend, and position-encoding path for a
 		shared transformer block. `__init__` stores `depth` pairs of `Attention` [1] and `FeedForward`
 		[2] in `layers`, forwards the downstream attention parameters without renaming through
 		`ParametersAttention` [3], and configures optional output normalization in `norm`. `__init__`
-		retains `linear_attn`, `mc_hyper_conn_sinkhorn_iters`, and `num_residual_fracs` only for
-		configuration compatibility with earlier wrappers.
+		retains `linear_attn` only for configuration compatibility with earlier versions.
 
 		Parameters
 		----------
@@ -872,23 +773,11 @@ class Transformer(Module):
 			backends [4].
 		heads : int = 8
 			Number of attention heads in each attention sublayer.
-		learned_value_residual_mix : bool | None = None
-			Compatibility switch passed to each `Attention` [1]. `True` asks each `Attention` to
-			create the learned value-residual mixing projection.
 		linear_attn : bool = False
-			Vestigial flag retained for wrapper configuration passthrough. This unified implementation
+			Vestigial flag retained for configuration compatibility passthrough. This unified implementation
 			ignores `linear_attn` because `LinearAttention` was removed.
-		mc_hyper_conn_sinkhorn_iters : int | None = None
-			Compatibility parameter retained for wrapper configuration passthrough. `__init__` ignores
-			`mc_hyper_conn_sinkhorn_iters`.
 		norm_output : bool = True
 			Whether to apply final output normalization after the last residual block.
-		num_residual_fracs : int | None = None
-			Compatibility parameter retained for wrapper configuration passthrough. `__init__` ignores
-			`num_residual_fracs`.
-		num_residual_streams : int = 1
-			Number of residual streams to prepare. When `num_residual_streams != 1`, `__init__` wraps
-			each stored sublayer with a residual-stream adapter after construction.
 		pope_embed : PoPE | None = None
 			Optional polar-coordinate position encoder passed to each `Attention` [1] [5][6]. When
 			both positional encoders are present, `Attention.forward` prefers `pope_embed`.
@@ -899,8 +788,6 @@ class Transformer(Module):
 			install `sageattention`.
 		scale : float | None = None
 			Optional attention-score multiplier override passed to each `Attention` [1].
-		use_value_residual_learning : bool = False
-			Whether each `Attention` should create and use the learned value-residual mixing path.
 
 		PyTorch
 		-------
@@ -908,17 +795,16 @@ class Transformer(Module):
 			`__init__` first builds `ParametersAttention` [3] with the downstream attention arguments.
 			`__init__` then creates `depth` `ModuleList` pairs, each containing one
 			`Attention(**parametersAttention)` [1] and one `FeedForward(dim=dim, ff_mult=ff_mult,
-			ff_dropout=ff_dropout)` [2]. When `num_residual_streams != 1`, `__init__` wraps each
-			stored sublayer with a residual-stream adapter. `norm` becomes `RMSNorm(dim)` when
+			ff_dropout=ff_dropout)` [2]. `norm` becomes `RMSNorm(dim)` when
 			`norm_output` is `True` and `nn.Identity()` otherwise [4].
 
 		References
 		----------
-		[1] hunterFormsBS.attend.Attention
+		[1] `Attention`
 
-		[2] hunterFormsBS.attend.FeedForward
+		[2] `FeedForward`
 
-		[3] hunterFormsBS.theTypes.ParametersAttention
+		[3] `hunterFormsBS.theTypes.ParametersAttention`
 
 		[4] PyTorch.
 			https://context7.com/pytorch/pytorch
@@ -944,132 +830,51 @@ class Transformer(Module):
 			dim=dim,
 			flash=flash_attn,
 			heads=heads,
-			learned_value_residual_mix=learned_value_residual_mix,
 			pope_embed=pope_embed,
 			rotary_embed=rotary_embed,
 			sage_attention=sage_attention,
 			scale=scale,
-			use_value_residual_learning=use_value_residual_learning,
 		)
 
 		self.layers = ModuleList(
 			ModuleList([Attention(**parametersAttention)
 					, FeedForward(dim=dim, ff_mult=ff_mult, ff_dropout=ff_dropout)])
-				for _deep in loops(depth)
+				for _layer in loops(depth)
 		)
-
-		if num_residual_streams != 1:
-			init_hyper_conn, *_streams = get_init_and_expand_reduce_stream_functions(
-				num_residual_streams, disable=(num_residual_streams == 1)
-			)
-			for moduleList in self.layers:
-				moduleList = cast('ModuleList', moduleList)
-				for nnModule in moduleList:
-					init_hyper_conn(dim=dim, branch=nnModule)
-
-		"""Original code because I have not tested the new code:
-		self.layers = ModuleList([])
-		for _deep in loops(depth):
-			attn = Attention(**parametersAttention, use_value_residual_learning=use_value_residual_learning)
-			if num_residual_streams != 1:
-				attn = init_hyper_conn(dim=dim, branch=attn)
-
-			ff = FeedForward(dim=dim, ff_mult=ff_mult, ff_dropout=ff_dropout)
-			if num_residual_streams != 1:
-				ff = init_hyper_conn(dim=dim, branch=ff)
-
-			self.layers.append(ModuleList([attn, ff]))"""
 
 		self.norm: RMSNorm | nn.Identity = RMSNorm(dim) if norm_output else nn.Identity()
 
-	@overload
-	def forward(self, x: Tensor, value_residual: None = None) -> Tensor: ...
-	@overload
-	def forward(self, x: Tensor, value_residual: Tensor) -> tuple[Tensor, Tensor | None]: ...
-	def forward(self, x: Tensor, value_residual: Tensor | None = None) -> Tensor | tuple[Tensor, Tensor | None]:
+	def forward(self, x: Tensor) -> Tensor:
 		"""Transform activations `x` through the residual stack.
 
-		You can use `forward` when `x` already has batch axis, sequence axis, and feature axis. When
-		`value_residual` is `None`, `forward` applies each stored `Attention` [1] and `FeedForward`
-		[2] with residual additions and then applies `norm`. When `value_residual` is not `None`,
-		`forward` passes `value_residual` to each stored `Attention`, keeps the first returned
-		pre-mixed value `Tensor`, applies each stored `FeedForward`, and returns the normalized
-		activation together with that first value `Tensor`. The pair-returning path is the
-		value-residual-learning path consumed by the wrapper model classes [3][4][5].
+		You can use `forward` when `x` already has batch axis, sequence axis, and feature axis.
 
 		Parameters
 		----------
 		x : Tensor
 			Input activation `Tensor` with shape `batch × sequence position × feature`.
-		value_residual : Tensor | None = None
-			Optional value `Tensor` passed to each stored `Attention`.
 
 		Returns
 		-------
-		result : Tensor | tuple[Tensor, Tensor | None]
-			When `value_residual` is `None`, `result` is the output activation `Tensor` with shape
-			`batch × sequence position × feature`. When `value_residual` is not `None`, `result` is
-			`(transformed_x, first_values)`, where `first_values` is the pre-mixed value `Tensor` from
-			the first attention block, or `None` when `self.layers` is empty.
-
-		Mathematics
-		-----------
-		residual recurrence : equation
-		```
-			Let L ≜ `len(self.layers)`,  X₀ ≜ `x`,
-				Aₗ ≜ `self.layers[ℓ][0]`,  Fₗ ≜ `self.layers[ℓ][1]`,  ℓ ∈ {0, …, L−1},
-				N ≜ `self.norm`
-
-			Hₗ = Aₗ(Xₗ) + Xₗ
-			Xₗ₊₁ = Fₗ(Hₗ) + Hₗ
-			Y = N(X_L)
-
-			where  Y ≜ `x`
-		```
-
-		value residual learning : equation
-		```
-			Let L ≜ `len(self.layers)`,  X₀ ≜ `x`,  R ≜ `value_residual`,
-				Aₗ ≜ `self.layers[ℓ][0]`,  Fₗ ≜ `self.layers[ℓ][1]`,  ℓ ∈ {0, …, L−1},
-				N ≜ `self.norm`
-
-			(Ĥₗ, Vₗ) = Aₗ(Xₗ; R)
-			Xₗ₊₁ = Fₗ(Ĥₗ)
-			Y = N(X_L)
-			U = V₀
-
-			where  Y ≜ `x`,  U ≜ `first_values`
-		```
+		result : Tensor
+			Output activation `Tensor` with shape `batch × sequence position × feature`.
 
 		References
 		----------
-		[1] hunterFormsBS.attend.Attention.forward
+		[1] `Attention.forward`
 
-		[2] hunterFormsBS.attend.FeedForward.forward
+		[2] `FeedForward.forward`
 
-		[3] hunterFormsBS.bandSplitRotator.BandSplitRotator
+		[3] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-		[4] hunterFormsBS.bs_roformer.BSRoformer
+		[4] `hunterFormsBS.bs_roformer.BSRoformer`
 
-		[5] hunterFormsBS.mel_band_roformer.MelBandRoformer
+		[5] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 		"""
-		first_values: Tensor | None = None
-		if value_residual is not None:
-			for sherpa in self.layers:
-				attn: Attention = cast('Attention', cast('ModuleList', sherpa)[0])
-				ff: FeedForward = cast('FeedForward', cast('ModuleList', sherpa)[1])
-				x, next_values = attn(x, value_residual=value_residual)
-				first_values = default(first_values, next_values)
-				x = ff(x)
-		else:
-			for sherpa in self.layers:
-				attn: Attention = cast('Attention', cast('ModuleList', sherpa)[0])
-				ff: FeedForward = cast('FeedForward', cast('ModuleList', sherpa)[1])
-				x = attn(x) + x
-				x = ff(x) + x
+		for sherpa in self.layers:
+			attn: Attention = cast('Attention', cast('ModuleList', sherpa)[0])
+			ff: FeedForward = cast('FeedForward', cast('ModuleList', sherpa)[1])
+			x = attn(x) + x
+			x = ff(x) + x
 
-		x = self.norm(x)
-
-		if value_residual is not None:
-			return x, first_values
-		return x
+		return self.norm(x)

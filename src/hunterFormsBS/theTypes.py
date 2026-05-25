@@ -2,7 +2,7 @@
 
 You can use this module to access the small record classes that group related keyword arguments and
 pass those keyword arguments through several constructor layers without renaming fields. The records
-keep the attention stack, the STFT helpers, and the separator wrappers aligned when one outer model
+keep the attention stack, the STFT helpers, and the separator models aligned when one outer model
 configures several downstream classes. The records are consumed by `hunterFormsBS.attend` [1],
 `hunterFormsBS.bandSplit` [2], `hunterFormsBS.bandSplitRotator.BandSplitRotator` [3],
 `hunterFormsBS.bs_roformer.BSRoformer` [4], and `hunterFormsBS.mel_band_roformer.MelBandRoformer` [5].
@@ -23,15 +23,15 @@ Classes
 
 References
 ----------
-[1] hunterFormsBS.attend
+[1] `hunterFormsBS.attend`
 
-[2] hunterFormsBS.bandSplit
+[2] `hunterFormsBS.bandSplit`
 
-[3] hunterFormsBS.bandSplitRotator.BandSplitRotator
+[3] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-[4] hunterFormsBS.bs_roformer.BSRoformer
+[4] `hunterFormsBS.bs_roformer.BSRoformer`
 
-[5] hunterFormsBS.mel_band_roformer.MelBandRoformer
+[5] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 """
 from __future__ import annotations
 
@@ -65,10 +65,9 @@ class FlashAttentionConfig(NamedTuple):
 class ParametersAttention(TypedDict):
 	"""Collect one attention-block keyword record.
 
-	You can use `ParametersAttention` to keep one attention-block configuration together while wrapper
-	classes forward stable field names through several constructor layers. The record stores head
-	geometry, dropout, positional-encoder objects, backend toggles, and optional
-	value-residual-learning controls.
+	You can use `ParametersAttention` to keep one attention-block configuration together while outer
+	model classes forward stable field names through several constructor layers. The record stores head
+	geometry, dropout, positional-encoder objects, backend toggles, and attention-score scaling.
 
 	Attributes
 	----------
@@ -82,9 +81,6 @@ class ParametersAttention(TypedDict):
 		Whether the attention block may use the optimized scaled-dot-product-attention backend path.
 	heads : int
 		Number of attention heads.
-	learned_value_residual_mix : bool | None
-		Compatibility switch controlling whether the attention block creates one learned mixer for
-		value-residual learning.
 	pope_embed : PoPE | None
 		Optional polar-coordinate positional encoder object. `pope_embed` is mutually exclusive with
 		`rotary_embed`.
@@ -97,8 +93,6 @@ class ParametersAttention(TypedDict):
 		separately [1].
 	scale : float | None
 		Optional override for the default inverse-square-root attention-score scale.
-	use_value_residual_learning : bool
-		Whether the attention block enables value-residual learning.
 
 	References
 	----------
@@ -110,12 +104,10 @@ class ParametersAttention(TypedDict):
 	dim: int
 	flash: bool
 	heads: int
-	learned_value_residual_mix: bool | None
 	pope_embed: PoPE | None
 	rotary_embed: RotaryEmbedding | None
 	sage_attention: bool
 	scale: float | None
-	use_value_residual_learning: bool
 
 class ParametersComputeLoss(TypedDict):
 	"""Collect one multi-resolution STFT loss keyword record.
@@ -174,7 +166,7 @@ class ParametersTransformer(TypedDict):
 	"""Collect one transformer-block keyword record.
 
 	You can use `ParametersTransformer` to keep one transformer-block configuration together while
-	separator wrappers forward stable field names to the shared attention stack. The record stores
+	separator models forward stable field names to the shared attention stack. The record stores
 	attention geometry, feedforward settings, backend toggles, optional multi-stream residual
 	settings, and compatibility fields kept for older configuration files.
 
@@ -195,17 +187,12 @@ class ParametersTransformer(TypedDict):
 		Whether attention sublayers may use the optimized scaled-dot-product-attention backend path.
 	heads : int
 		Number of attention heads.
-	learned_value_residual_mix : bool | None
-		Compatibility switch controlling whether attention sublayers create one learned mixer for
-		value-residual learning.
 	linear_attn : bool
 		Legacy compatibility flag preserved for older configuration files. The current shared
 		transformer stack keeps only the standard attention path, so `linear_attn` is forwarded as
 		metadata rather than selecting a separate linear-attention implementation.
 	norm_output : bool
 		Whether to normalize after the last layer.
-	num_residual_streams : int
-		Number of residual streams requested for multi-stream residual wrapping.
 	sage_attention : bool
 		Whether attention sublayers may try the optional `SageAttention` backend [1]. `SageAttention`
 		is not installed automatically with `hunterFormsBS`, so you must install `SageAttention`
@@ -225,9 +212,7 @@ class ParametersTransformer(TypedDict):
 	ff_mult: float | None
 	flash_attn: bool
 	heads: int
-	learned_value_residual_mix: bool | None
 	linear_attn: bool
 	norm_output: bool
-	num_residual_streams: int
 	sage_attention: bool
 	scale: float | None

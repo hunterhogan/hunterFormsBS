@@ -1,5 +1,11 @@
 # hunterFormsBS
 
+TODO
+
+- Make a GitHub release before deleting bs_roformer.py and mel_band_roformer.py.
+- Delete bs_roformer.py and mel_band_roformer.py.
+- Add all of the new MaskEstimator parameters to BandSplitRotator.
+
 A flexible frequency-band splitter for music source separation, organized around a single separator family that can express BS-style, mel-style, and custom layouts.
 
 Instead of treating `BSRoformer` and `MelBandRoformer` as separate architectures, this package treats them as different band-layout configurations of one core design centered on `BandSplitRotator`.
@@ -7,7 +13,7 @@ Instead of treating `BSRoformer` and `MelBandRoformer` as separate architectures
 [![pip install hunterFormsBS](https://img.shields.io/badge/pip_install-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
 [![uv add hunterFormsBS](https://img.shields.io/badge/uv_add-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
 
-The codebase is implemented in PyTorch, fully typed (`py.typed`), and designed for modular reuse so options such as PoPE, custom filter banks, value-residual learning, residual streams, and optional SageAttention acceleration can live on one aligned constructor surface.
+The codebase is implemented in PyTorch, fully typed (`py.typed`), and designed for modular reuse so options such as PoPE, custom filter banks, and optional SageAttention acceleration can live on one aligned constructor surface.
 
 ## Quick fix: size mismatch when loading a checkpoint
 
@@ -38,12 +44,8 @@ is treated as a band-layout problem, not as a reason to maintain two unrelated m
 
 - `hunterFormsBS.bandSplitRotator.BandSplitRotator` is the primary unified entry point.
 - `hunterFormsBS.bs_roformer.BSRoformer` and `hunterFormsBS.mel_band_roformer.MelBandRoformer` serve as transition modules, keeping familiar APIs, upstream names, and defaults.
-- `hunterFormsBS.bandSplit.BandSplit`, `hunterFormsBS.bandSplit.MaskEstimator`, and
-  `hunterFormsBS.attend.Transformer` hold the reusable typed building blocks shared across those entry
-  points.
-- Attention and transformer options such as `attn_dropout`, `ff_dropout`, `flash_attn`,
-  `sage_attention`, `scale`, `num_residual_streams`, and `use_value_residual_learning` keep the same
-  identifiers as they move from model constructors into downstream blocks.
+- `hunterFormsBS.bandSplit.BandSplit`, `hunterFormsBS.bandSplit.MaskEstimator`, and `hunterFormsBS.attend.Transformer` hold the reusable typed building blocks shared across those entry points.
+- Attention and transformer options such as `attn_dropout`, `ff_dropout`, `flash_attn`, `sage_attention`, and `scale` keep the same identifiers as they move from model constructors into downstream blocks.
 
 At the band level, the model only needs a band-membership map, called `mask_filter_bank` in the
 codebase. You can think of that map as a Boolean matrix
@@ -94,9 +96,8 @@ supports that path. `sage_attention=True` asks downstream `Attend` blocks to cal
 `sageattention.sageattn`; install [SageAttention](https://github.com/thu-ml/SageAttention) manually
 before enabling it because `hunterFormsBS` does not install that package.
 
-`BandSplitRotator` can choose RoPE or PoPE with `use_pope`, and the same model family exposes
-value-residual and residual-stream controls for deeper attention experiments without changing entry
-points.
+`BandSplitRotator` can choose RoPE or PoPE with `use_pope`, so the same model family can switch
+positional encoders without changing entry points.
 
 ## Custom `mask_filter_bank` helpers
 
@@ -142,11 +143,9 @@ module. `librosa` is only needed if you call `librosa_filters_mel`.
     training-loss helper.
 - `hunterFormsBS.attend`
   - Main symbols: `Attend`, `Attention`, `FeedForward`, `Transformer`
-  - Purpose: shared attention, feedforward, and transformer building blocks with RoPE / PoPE,
-    PyTorch SDPA, optional SageAttention, value-residual, and residual-stream support.
+  - Purpose: shared attention, feedforward, and transformer building blocks with RoPE / PoPE, PyTorch SDPA, and optional SageAttention support.
 - `hunterFormsBS.theTypes`
-  - Main symbols: `ParametersComputeLoss`, `FlashAttentionConfig`, `ParametersAttention`, `ParametersSTFT`,
-    `ParametersTransformer`
+  - Main symbols: `ParametersComputeLoss`, `FlashAttentionConfig`, `ParametersAttention`, `ParametersSTFT`, `ParametersTransformer`
   - Purpose: typed configuration records used across the package.
 
 ## Architecture in one sentence
@@ -300,15 +299,6 @@ imports so the main namespace remains small and optional dependencies stay optio
 - eprint: [arXiv.2506.17733](https://arxiv.org/abs/2506.17733)
 - Implementation:
   - [iMoonLab/yolov13](https://github.com/iMoonLab/yolov13)
-
-### Value Residual Learning
-
-- Common name: ResFormer
-- [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/zhou-etal-2025-value.bib) [TeX Source with precise formulas for AI agents.](https://arxiv.org/src/2410.17897)
-- Proceedings: [10.18653/v1/2025.acl-long.1375](https://aclanthology.org/2025.acl-long.1375.pdf)
-- Implementations:
-  - [Zcchill/Value-Residual-Learning](https://github.com/Zcchill/Value-Residual-Learning)
-    - [context7](https://context7.com/zcchill/value-residual-learning)
 
 ### Decoupling the "What" and "Where" With Polar Coordinate Positional Embeddings
 

@@ -31,7 +31,6 @@ dependencies = [
   "Z0Z_tools",
   "einops>=0.8.2",
   "hunterMakesPy",
-  "hyper-connections>=0.4.10",
   "more-itertools",
   "opt-einsum>=3.4.0",
   "packaging",
