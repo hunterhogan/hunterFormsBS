@@ -37,8 +37,8 @@ keywords:
 license: CC-BY-NC-4.0
 message: Cite this software with the metadata in this file.
 repository: https://github.com/hunterhogan/hunterFormsBS.git
-repository-artifact: https://pypi.org/project/hunterformsbs/0.1.7/
+repository-artifact: https://pypi.org/project/hunterformsbs/0.2.0/
 repository-code: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.1.7
 title: hunterFormsBS
 url: https://github.com/hunterhogan/hunterFormsBS
-version: 0.1.7
+version: 0.2.0
