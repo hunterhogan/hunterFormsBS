@@ -2,7 +2,7 @@
 
 A flexible frequency-band splitter for music source separation, organized around a single separator family that can express BS-style, mel-style, and custom layouts.
 
-Instead of treating `BSRoformer` and `MelBandRoformer` as separate architectures, this package treats them as different band-layout configurations of one core design centered on `BandSplitRotator`.
+Instead of treating BS-style and mel-band layouts as separate Python entry points, this package treats them as different band-layout configurations of one core design centered on `BandSplitRotator`.
 
 [![pip install hunterFormsBS](https://img.shields.io/badge/pip_install-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
 [![uv add hunterFormsBS](https://img.shields.io/badge/uv_add-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
@@ -11,9 +11,9 @@ The codebase is implemented in PyTorch, fully typed (`py.typed`), and designed f
 
 ## Quick fix: size mismatch when loading a checkpoint
 
-If loading a `BSRoFormer` checkpoint raises a size-mismatch error, check `mask_estimator_depth` in the configuration.
+If loading an older BS-style checkpoint or configuration raises a size-mismatch error, check `mask_estimator_depth` in the configuration.
 
-Some upstream configurations effectively used `mask_estimator_depth=1` even when set to `2` because a later subtraction was applied. This package removes that subtraction, so the direct equivalent is:
+Some earlier configuration files effectively used `mask_estimator_depth=1` even when stored as `2` because a later subtraction was applied. This package removes that subtraction, so the direct equivalent is:
 
 - set `mask_estimator_depth=1`
 
@@ -21,25 +21,26 @@ Updating that value resolves the most common mismatch quickly.
 
 ## Why this architecture helps in practice
 
-- **Forward-looking architecture:** A single model family makes it easier to adopt new ideas, such as PoPE or custom band-split definitions, while keeping interfaces aligned with established ecosystems.
-- **Universal configuration:** `BandSplitRotator`, `BSRoformer`, and `MelBandRoformer` share downstream option names for attention, transformer, mask-estimator, STFT, and loss settings.
+- **Forward-looking architecture:** A single model family makes it easier to adopt new ideas, such as PoPE, HyperACE, or custom band-split definitions, while keeping interfaces aligned with established ecosystems.
+- **Universal configuration surface:** `BandSplitRotator` exposes downstream attention, transformer, mask-estimator, optional HyperACE segmentation-branch, STFT, and loss settings on one constructor.
 - **Rich tooling and ecosystem:** The package provides strong typing (`py.typed`), modular APIs, and rich docstrings focusing on usage, literature citations, and migration paths.
 
 ## Easy to migrate
 
-Transitioning from other standard implementations is straightforward because **most identifiers are exactly the same** and the data flow is highly similar.
+Transitioning from older codebases is straightforward because **most downstream identifiers stay the same** and the data flow is highly similar.
 
-If you're changing from an existing codebase, you can use the **transition modules**: simply keep using the `BSRoformer` and `MelBandRoformer` namespaces and APIs as a bridge, unify your other classes, and then switch to `BandSplitRotator` when you're ready.
+If you're changing from an existing codebase, replace the older import path with `BandSplitRotator`, then choose the desired band layout with `freqs_per_bands`, `sample_rate` together with `num_bands`, or `mask_filter_bank`.
 
 ## What is unified here
 
 The key design idea is that the difference between the BS-style front end and the mel-band front end
 is treated as a band-layout problem, not as a reason to maintain two unrelated model families.
 
-- `hunterFormsBS.bandSplitRotator.BandSplitRotator` is the primary unified entry point.
-- `hunterFormsBS.bs_roformer.BSRoformer` and `hunterFormsBS.mel_band_roformer.MelBandRoformer` serve as transition modules, keeping familiar APIs, upstream names, and defaults.
-- `hunterFormsBS.bandSplit.BandSplit`, `hunterFormsBS.bandSplit.MaskEstimator`, and `hunterFormsBS.attend.Transformer` hold the reusable typed building blocks shared across those entry points.
+- `hunterFormsBS.bandSplitRotator.BandSplitRotator` is the primary unified entry point and the only public separator class exported by this package.
+- `hunterFormsBS.bandSplit.BandSplit`, `hunterFormsBS.bandSplit.MaskEstimator`, and `hunterFormsBS.attend.Transformer` hold the reusable typed building blocks shared across all band-layout modes.
+- `hunterFormsBS.hyperACE.SegmModel` supplies the optional segmentation-style mask-estimation branch used when `use_hyperACE=True`.
 - Attention and transformer options such as `attn_dropout`, `ff_dropout`, `flash_attn`, `sage_attention`, and `scale` keep the same identifiers as they move from model constructors into downstream blocks.
+- All user-configurable separator settings live on `BandSplitRotator`, including optional HyperACE branch settings under the `segm_*` prefix.
 
 At the band level, the model only needs a band-membership map, called `mask_filter_bank` in the
 codebase. You can think of that map as a Boolean matrix
@@ -75,13 +76,13 @@ That is why this package makes it easy to move between overlapping and non-overl
 change how bands are distributed across the frequency axis. The architectural difference lives in the
 filter bank, not in two separate theories of the model.
 
-## Which entry point you should use
+## Which band-layout mode you should use
 
-| Use this                                          | When                                                                                                           | Why                                                                              |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `hunterFormsBS.BandSplitRotator`                  | You are starting new work or want one separator that can cover BS-style, mel-style, and custom band layouts.   | This is the unified model entry point.                                           |
-| `hunterFormsBS.bs_roformer.BSRoformer`            | You want the familiar non-overlapping BS-style interface or a close comparison with upstream BS-RoFormer code. | The constructor keeps BS-oriented defaults and compatibility fields.             |
-| `hunterFormsBS.mel_band_roformer.MelBandRoformer` | You want the familiar mel-band interface or a close comparison with upstream mel-band code.                    | The constructor keeps mel-oriented defaults and automatic mel-band construction. |
+| Use this configuration | When | Key parameters |
+| --- | --- | --- |
+| `BandSplitRotator` with the default non-overlapping layout | You want a BS-style frequency partition or a close comparison with non-overlapping upstream layouts. | `freqs_per_bands`, optional `num_bands` |
+| `BandSplitRotator` with automatic mel-band construction | You want a mel-band layout computed at runtime. | `sample_rate`, `num_bands`, `melscale_fbanks_mel_scale`, `melscale_fbanks_norm` |
+| `BandSplitRotator` with explicit custom bands | You want a checkpoint-specific or research-specific layout. | `mask_filter_bank` |
 
 ## Attention and optional acceleration
 
@@ -95,20 +96,23 @@ positional encoders without changing entry points.
 
 ## Automatic and custom `mask_filter_bank` construction
 
-Most users never need this section. When `mask_filter_bank` is `None`, `BandSplitRotator` and
-`MelBandRoformer` build mel-band layouts at runtime with `torchaudio.functional.melscale_fbanks`.
-The constructor parameters `melscale_fbanks_mel_scale` and `melscale_fbanks_norm` are forwarded to
-`torchaudio`, so you can choose the mel-scale formula and normalization rule used for automatic
-mel-band construction.
+Most users never need this section. When `mask_filter_bank` is `None` and both `sample_rate` and
+`num_bands` are provided, `BandSplitRotator` builds mel-band layouts at runtime with
+`torchaudio.functional.melscale_fbanks`. The constructor parameters
+`melscale_fbanks_mel_scale` and `melscale_fbanks_norm` are forwarded to `torchaudio`, so you can
+choose the mel-scale formula and normalization rule used for automatic mel-band construction.
 
 For the package default mel-band layout, keep `sample_rate=44100`, `stft_n_fft=2048`,
 `num_bands=60`, `melscale_fbanks_mel_scale='slaney'`, and `melscale_fbanks_norm='slaney'`.
 
-For the non-overlapping BS-style layout, the constructors derive the Boolean band-membership map
-from `freqs_per_bands`.
+When `sample_rate` and `num_bands` are not both provided, `BandSplitRotator` derives the
+non-overlapping BS-style Boolean band-membership map from `freqs_per_bands`.
 
 If a checkpoint uses a different band layout, pass `mask_filter_bank` explicitly as a Boolean
 `torch.Tensor` with shape `(band, freq)`.
+
+All optional segmentation-branch settings also live on `BandSplitRotator` under the `segm_*`
+prefix.
 
 ## Package map
 
@@ -118,14 +122,8 @@ If a checkpoint uses a different band layout, pass `mask_filter_bank` explicitly
 - `hunterFormsBS.bandSplitRotator`
   - Main symbols: `BandSplitRotator`
   - Purpose: unified separator that can build BS-style, mel-style, or custom band layouts from one
-    model family, with downstream attention, transformer, STFT, mask-estimator, and loss options on
-    the constructor.
-- `hunterFormsBS.bs_roformer`
-  - Main symbols: `BSRoformer`
-  - Purpose: familiar non-overlapping BS-style interface with BS-oriented defaults.
-- `hunterFormsBS.mel_band_roformer`
-  - Main symbols: `MelBandRoformer`
-  - Purpose: familiar mel-band interface with automatic mel-band construction.
+    model family, with downstream attention, transformer, STFT, mask-estimator, optional
+    segmentation-branch, and loss options on the constructor.
 - `hunterFormsBS.bandSplit`
   - Main symbols: `BandSplit`, `MaskEstimator`, `MLP`, `lossComputation`,
     `DEFAULT_FREQS_PER_BANDS`
@@ -134,8 +132,11 @@ If a checkpoint uses a different band layout, pass `mask_filter_bank` explicitly
 - `hunterFormsBS.attend`
   - Main symbols: `Attend`, `Attention`, `FeedForward`, `Transformer`
   - Purpose: shared attention, feedforward, and transformer building blocks with RoPE / PoPE, PyTorch SDPA, and optional SageAttention support.
+- `hunterFormsBS.hyperACE`
+  - Main symbols: `SegmModel`, `HyperACE`, `Backbone`, `Decoder`, `ProgressiveUpsampleHead`
+  - Purpose: optional segmentation-style mask-estimation branch and its reusable building blocks.
 - `hunterFormsBS.theTypes`
-  - Main symbols: `ParametersComputeLoss`, `FlashAttentionConfig`, `ParametersAttention`, `ParametersSTFT`, `ParametersTransformer`
+  - Main symbols: `ParametersComputeLoss`, `FlashAttentionConfig`, `ParametersAttention`, `ParametersMaskEstimator`, `ParametersSTFT`, `ParametersTransformer`
   - Purpose: typed configuration records used across the package.
 
 ## Architecture in one sentence
@@ -147,15 +148,15 @@ The stable separator path is
 followed by overlap-aware mask averaging when needed, complex masking in the STFT domain, and inverse
 STFT reconstruction back to waveform audio.
 
+When `use_hyperACE=True`, each `MaskEstimator` head also adds the optional segmentation-style branch
+before the final mask accumulation step.
+
 ## Top-level exports
 
 The top-level package namespace currently re-exports the primary model that new users most often
 need:
 
 - `BandSplitRotator`
-
-The compatibility classes are intentionally available from their own modules so that imports can stay
-explicit during comparisons with upstream repos.
 
 Supporting modules stay under explicit submodule imports so the main namespace remains small and
 comparisons with upstream repos stay easy to read.

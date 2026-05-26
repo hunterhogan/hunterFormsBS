@@ -1,14 +1,15 @@
 # ruff: noqa: PLC0415
 """Assemble attention, feedforward, and transformer blocks for music source separation.
 
-You can use this module to assemble the unified attention stack shared by `BandSplitRotator`,
-`BSRoformer`, and `MelBandRoformer` [1][2][3]. The constructor parameter names stay aligned across the
-stack so outer model classes can pass settings such as `attn_dropout`, `flash_attn`, `sage_attention`, and
-`scale` [1][2][3]. `Attend` evaluates attention from precomputed query, key, and value arrays and can
-dispatch to an explicit implementation, to PyTorch SDPA [4], or to SageAttention [5][6]. `Attention`
-projects activations into query, key, and value arrays, applies RoPE [7] or PoPE [8], and then calls
-`Attend`. `FeedForward` applies the position-wise expansion-and-projection block paired with each
-attention block. `Transformer` stacks repeated `Attention` and `FeedForward` pairs [1][2][3].
+You can use this module to assemble the unified attention stack used by
+`hunterFormsBS.bandSplitRotator.BandSplitRotator` [1]. The constructor parameter names stay aligned
+across the stack so outer model classes can pass settings such as `attn_dropout`, `flash_attn`,
+`sage_attention`, and `scale` without renaming fields. `Attend` evaluates attention from
+precomputed query, key, and value arrays and can dispatch to an explicit implementation, to
+PyTorch SDPA [2], or to SageAttention [3][4]. `Attention` projects activations into query, key,
+and value arrays, applies RoPE [5] or PoPE [6], and then calls `Attend`. `FeedForward` applies the
+position-wise expansion-and-projection block paired with each attention block. `Transformer`
+stacks repeated `Attention` and `FeedForward` pairs.
 
 Contents
 --------
@@ -26,20 +27,16 @@ References
 ----------
 [1] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-[2] `hunterFormsBS.bs_roformer.BSRoformer`
-
-[3] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
-
-[4] PyTorch.
+[2] PyTorch.
 	https://context7.com/pytorch/pytorch
-[5] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., and Chen, J. (2025).
+[3] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., and Chen, J. (2025).
 	SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration.
 	https://arxiv.org/abs/2410.02367
-[6] thu-ml/SageAttention
+[4] thu-ml/SageAttention
 	https://github.com/thu-ml/SageAttention
-[7] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., and Liu, Y. (2021).
+[5] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., and Liu, Y. (2021).
 	RoFormer: Enhanced Transformer with Rotary Position Embedding. https://arxiv.org/abs/2104.09864
-[8] Gopalakrishnan, A., Csordás, R., Schmidhuber, J., and Mozer, M. C. (2025).
+[6] Gopalakrishnan, A., Csordás, R., Schmidhuber, J., and Mozer, M. C. (2025).
 	Decoupling the "What" and "Where" With Polar Coordinate Positional Embeddings.
 	https://arxiv.org/abs/2509.10534
 """
@@ -377,11 +374,11 @@ class Attention(nn.Module):
 	scale : float = dim_head ** -0.5
 		Head-feature normalization factor. `scale` is `dim_head ** -0.5` when `scale` is omitted.
 	to_gates : nn.Linear
-		Projection layer implemented with `nn.Linear` [9] to produce one gate value for each head.
+		Projection layer implemented with `nn.Linear` [6] to produce one gate value for each head.
 	to_out : nn.Sequential
-		Output projection and dropout submodule sequence implemented with PyTorch layers [9].
+		Output projection and dropout submodule sequence implemented with PyTorch layers [6].
 	to_qkv : nn.Linear
-		Projection layer implemented with `nn.Linear` [9] to produce concatenated query, key, and
+		Projection layer implemented with `nn.Linear` [6] to produce concatenated query, key, and
 		value features.
 
 	References
@@ -397,13 +394,7 @@ class Attention(nn.Module):
 
 	[5] `Transformer`
 
-	[6] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
-
-	[7] `hunterFormsBS.bs_roformer.BSRoformer`
-
-	[8] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
-
-	[9] PyTorch.
+	[6] PyTorch.
 		https://context7.com/pytorch/pytorch
 	"""
 	def __init__(
@@ -430,10 +421,10 @@ class Attention(nn.Module):
 		submodule construction : implementation detail
 			`__init__` computes `dim_inner = heads * dim_head`, stores `rotary_embed` and
 			`pope_embed`, creates `Attend(flash=flash, attn_dropout=attn_dropout,
-			sage_attention=sage_attention)` [4], instantiates `RMSNorm(dim)`, and constructs `to_qkv =
+			sage_attention=sage_attention)` [1], instantiates `RMSNorm(dim)`, and constructs `to_qkv =
 			nn.Linear(dim, dim_inner * 3, bias=False)`, `to_gates = nn.Linear(dim, heads)`, and
 			`to_out = nn.Sequential(nn.Linear(dim_inner, dim, bias=False), nn.Dropout(attn_dropout))`
-			[5].
+			[2].
 
 		Parameters
 		----------
@@ -444,46 +435,40 @@ class Attention(nn.Module):
 		dim_head : int = 64
 			Feature width of each head before concatenation.
 		attn_dropout : float = 0.0
-			Probability used by `Attend` [4] and the output dropout layer.
+			Probability used by `Attend` [1] and the output dropout layer.
 		pope_embed : PoPE | None = None
-			Optional polar-coordinate position encoder [6][7]. When `pope_embed` is not `None`,
+			Optional polar-coordinate position encoder [3][4]. When `pope_embed` is not `None`,
 			`forward` prefers the PoPE path over the rotary path.
 		rotary_embed : RotaryEmbedding | None = None
-			Optional rotary position encoder [8]. `forward` uses `rotary_embed` only when `pope_embed`
+			Optional rotary position encoder [5]. `forward` uses `rotary_embed` only when `pope_embed`
 			is `None`.
 		scale : float | None = None
 			Optional attention-score multiplier override. When `scale` is `None`, `__init__` stores
 			`dim_head ** -0.5`.
 		flash : bool = True
-			Whether `Attend` [4] may use PyTorch SDPA [5] when the PoPE path is not active and
+			Whether `Attend` [1] may use PyTorch SDPA [2] when the PoPE path is not active and
 			`sage_attention` is `False`.
 		sage_attention : bool = False
-			Whether `Attend` [4] should prefer SageAttention [9][10]. `hunterFormsBS` does not install
+			Whether `Attend` [1] should prefer SageAttention [6][7]. `hunterFormsBS` does not install
 			`sageattention`.
 
 		References
 		----------
-		[1] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
+		[1] `Attend`
 
-		[2] `hunterFormsBS.bs_roformer.BSRoformer`
-
-		[3] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
-
-		[4] `Attend`
-
-		[5] PyTorch.
+		[2] PyTorch.
 			https://context7.com/pytorch/pytorch
-		[6] Gopalakrishnan, A., Csordás, R., Schmidhuber, J., and Mozer, M. C. (2025).
+		[3] Gopalakrishnan, A., Csordás, R., Schmidhuber, J., and Mozer, M. C. (2025).
 			Decoupling the "What" and "Where" With Polar Coordinate Positional Embeddings.
 			https://arxiv.org/abs/2509.10534
-		[7] lucidrains/PoPE-pytorch.
+		[4] lucidrains/PoPE-pytorch.
 			https://github.com/lucidrains/PoPE-pytorch
-		[8] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., and Liu, Y. (2021). RoFormer: Enhanced
+		[5] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., and Liu, Y. (2021). RoFormer: Enhanced
 			Transformer with Rotary Position Embedding. https://arxiv.org/abs/2104.09864
-		[9] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., and Chen, J. (2025).
+		[6] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., and Chen, J. (2025).
 			SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration.
 			https://arxiv.org/abs/2410.02367
-		[10] thu-ml/SageAttention
+		[7] thu-ml/SageAttention
 			https://github.com/thu-ml/SageAttention
 		"""
 		super().__init__()
@@ -567,9 +552,7 @@ class Attention(nn.Module):
 
 		[5] `Transformer`
 
-		[6] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
-
-		[7] Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L.,
+		[6] Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L.,
 			Gomez, A. N., Kaiser, Ł., and Polosukhin, I. (2017). Attention Is All You Need.
 			https://arxiv.org/abs/1706.03762
 		"""
@@ -600,14 +583,13 @@ class FeedForward(Module):
 	`x` at each sequence position should pass through the same nonlinear feature transform.
 	`FeedForward` preserves the batch axis, sequence axis, and feature axis of activation `Tensor` `x`
 	while expanding the feature width internally before projecting back to the original width. The
-	shared `BandSplitRotator`, `BSRoformer`, and `MelBandRoformer` stacks use one `FeedForward` block
-	after every attention block [3][4][5].
+	shared `BandSplitRotator` stack uses one `FeedForward` block after every attention block [3].
 
 	Attributes
 	----------
 	net : nn.Sequential
 		Position-wise submodule sequence containing root-mean-square normalization, width expansion,
-		`nn.GELU`, `ff_dropout`, width projection, and output `ff_dropout` [6].
+		`nn.GELU`, `ff_dropout`, width projection, and output `ff_dropout` [4].
 
 	References
 	----------
@@ -617,11 +599,7 @@ class FeedForward(Module):
 
 	[3] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-	[4] `hunterFormsBS.bs_roformer.BSRoformer`
-
-	[5] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
-
-	[6] PyTorch.
+	[4] PyTorch.
 		https://context7.com/pytorch/pytorch
 	"""
 	def __init__(self, dim: int, ff_mult: float | None = 4.0, ff_dropout: float = 0.0) -> None:
@@ -699,9 +677,9 @@ class FeedForward(Module):
 class Transformer(Module):
 	"""Refine activations with repeated attention-and-feedforward blocks.
 
-	You can use `Transformer` as the shared sequence stack inside `BandSplitRotator` [1], `BSRoformer`
-	[2], and `MelBandRoformer` [3]. `Transformer` takes activation `Tensor` `x`, repeats `depth` pairs
-	of `Attention` [4] and `FeedForward` [5], and optionally normalizes the result. `Transformer`
+	You can use `Transformer` as the shared sequence stack inside `BandSplitRotator` [1].
+	`Transformer` takes activation `Tensor` `x`, repeats `depth` pairs of `Attention` [2] and
+	`FeedForward` [3], and optionally normalizes the result. `Transformer`
 	preserves the batch axis, sequence axis, and feature axis of activation `Tensor` `x`. The
 	constructor still accepts several compatibility parameters, but the stack itself no longer
 	contains `LinearAttention`.
@@ -710,7 +688,7 @@ class Transformer(Module):
 	----------
 	layers : ModuleList
 		Sequence of per-depth `[attention, feedforward]` pairs, where the attention entry is
-		`Attention` [4] and the feedforward entry is `FeedForward` [5].
+		`Attention` [2] and the feedforward entry is `FeedForward` [3].
 	norm : RMSNorm | nn.Identity
 		Final output normalization module applied after the last residual block when `norm_output` is
 		`True`, or `nn.Identity` otherwise.
@@ -719,13 +697,9 @@ class Transformer(Module):
 	----------
 	[1] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-	[2] `hunterFormsBS.bs_roformer.BSRoformer`
+	[2] `Attention`
 
-	[3] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
-
-	[4] `Attention`
-
-	[5] `FeedForward`
+	[3] `FeedForward`
 	"""
 	def __init__(
 		self,
@@ -864,12 +838,6 @@ class Transformer(Module):
 		[1] `Attention.forward`
 
 		[2] `FeedForward.forward`
-
-		[3] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
-
-		[4] `hunterFormsBS.bs_roformer.BSRoformer`
-
-		[5] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 		"""
 		for sherpa in self.layers:
 			attn: Attention = cast('Attention', cast('ModuleList', sherpa)[0])

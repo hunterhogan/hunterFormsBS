@@ -1,4 +1,5 @@
 # Suggested commands for Windows development
+
 - Sync / create the environment:
   - `uv sync`
 - Terminal rule:
@@ -26,5 +27,5 @@
   - `Set-Location`, `Get-ChildItem`, `Get-ChildItem -Recurse`, `Get-Content`, `Select-String`, `Test-Path`, `git status`, `git diff`.
 - Package invocation:
   - Primary intended entrypoint is `BandSplitRotator` from Python imports.
-  - `bs_roformer.py` and `mel_band_roformer.py` are transition / compatibility modules for familiar `BSRoformer` and `MelBandRoformer` APIs.
-  - There is no separate static mask filter-bank helper module. Use `melscale_fbanks_mel_scale` and `melscale_fbanks_norm` on `BandSplitRotator` or `MelBandRoformer`, or pass `mask_filter_bank` explicitly.
+  - Band-layout selection now lives on `BandSplitRotator`: use `freqs_per_bands` for non-overlapping BS-style layouts, `sample_rate` together with `num_bands` for automatic mel-band layouts, or `mask_filter_bank` for custom layouts.
+  - There is no separate static mask filter-bank helper module. Use `melscale_fbanks_mel_scale` and `melscale_fbanks_norm` on `BandSplitRotator`, or pass `mask_filter_bank` explicitly.

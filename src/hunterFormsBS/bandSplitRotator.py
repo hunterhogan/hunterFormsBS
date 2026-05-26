@@ -1,18 +1,13 @@
-"""Use the converged BS-RoFormer and Mel-Band RoFormer waveform separator.
+"""Use one converged waveform separator with configurable band layouts.
 
 You can use this module to instantiate one configurable waveform-to-waveform music source separator
-that combines the non-overlapping band-split front end from BS-RoFormer [1] with the overlapped
-mel-band front end from `MelBandRoformer` [2]. The public `class` `BandSplitRotator` surfaces
-constructor parameters from downstream attention, transformer, mask-estimator, STFT, and loss
-components.
+that supports non-overlapping BS-style bands, automatic mel-band layouts built with
+`torchaudio.functional.melscale_fbanks` [1], and explicit custom `mask_filter_bank` definitions.
+The public `class` `BandSplitRotator` surfaces downstream attention, transformer, mask-estimator,
+optional segmentation-branch, STFT, and loss parameters on one constructor.
 
-When `mask_filter_bank` is `None` and mel-band mode is selected, `BandSplitRotator` builds the band
-layout at runtime with `torchaudio.functional.melscale_fbanks` [3].
-`melscale_fbanks_mel_scale` and `melscale_fbanks_norm` are forwarded to that `torchaudio` call [3].
-For non-overlapping layouts, `BandSplitRotator` derives the Boolean band-membership map from
-`freqs_per_bands`. For custom layouts, pass `mask_filter_bank` explicitly. When
-`sage_attention=True`, downstream attention blocks attempt to call the separately installed
-`SageAttention` package [4][5]. `hunterFormsBS` does not install `SageAttention` automatically.
+When `sage_attention=True`, downstream attention blocks attempt to call the separately installed
+`SageAttention` package [2][3]. `hunterFormsBS` does not install `SageAttention` automatically.
 
 Contents
 --------
@@ -23,15 +18,11 @@ Classes
 
 References
 ----------
-[1] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation with
-	Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
-[2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
-	Transcription https://arxiv.org/abs/2409.04702
-[3] torchaudio.functional.melscale_fbanks - torchaudio
+[1] torchaudio.functional.melscale_fbanks - torchaudio
 	https://docs.pytorch.org/audio/stable/generated/torchaudio.functional.melscale_fbanks.html
-[4] thu-ml/SageAttention
+[2] thu-ml/SageAttention
 	https://github.com/thu-ml/SageAttention
-[5] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., & Chen, J. (2025).
+[3] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., & Chen, J. (2025).
 	SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration.
 	https://arxiv.org/abs/2410.02367
 """
@@ -62,18 +53,20 @@ if TYPE_CHECKING:
 	from collections.abc import Callable
 
 class BandSplitRotator(Module):
-	"""Separate a raw-audio mixture into stem audio with the converged `BandSplitRotator` model.
+	"""Separate a raw-audio mixture into stem audio with one converged separator.
 
 	You can use this class to instantiate one waveform-to-waveform separator that accepts mixture
 	waveform `Tensor` `raw_audio`, computes one complex short-time Fourier transform (STFT)
-	representation, groups frequency bins into band token `Tensor` `x`, applies repeated time-axis and
-	frequency-axis transformer blocks, predicts one complex mask for each configured stem, and returns
-	reconstructed stem waveform `Tensor` `recon_audio` or training loss through
-	`hunterFormsBS.bandSplit.lossComputation` [7]. The band front end can follow the non-overlapping
-	band split from BS-RoFormer [1] or the overlapped mel-band split from Mel-Band RoFormer [2].
+	representation, groups frequency bins into band token `Tensor` `x`, applies repeated time-axis
+	and frequency-axis transformer blocks, predicts one complex mask for each configured stem, and
+	returns reconstructed stem waveform `Tensor` `recon_audio` or training loss through
+	`hunterFormsBS.bandSplit.lossComputation` [1]. The band front end can use one non-overlapping
+	BS-style partition or one overlapped mel-band layout built with
+	`torchaudio.functional.melscale_fbanks` [2].
 
-	`BandSplitRotator` can select RoPE [3] or PoPE [4], request the optional `SageAttention` backend
-	[5][6], and keep compatibility fields for older configuration files [8][9].
+	`BandSplitRotator` keeps the full user-configurable surface on one constructor.
+	`BandSplitRotator` can select RoPE [3] or PoPE [4], request the optional `SageAttention`
+	backend [5][6], and preserve compatibility sentinels for older configuration files.
 
 	Attributes
 	----------
@@ -121,16 +114,17 @@ class BandSplitRotator(Module):
 	stft_window_fn : Callable[..., Tensor]
 		Partially applied window constructor used by the forward and inverse STFT calls.
 	use_torch_checkpoint : bool
-		Whether selected modules are executed through activation checkpointing [10].
+		Whether selected modules are executed through activation checkpointing [7].
 	zero_dc : bool
 		Whether the DC (zero-frequency) bin is zeroed before inverse STFT reconstruction.
 
 	Configuration modes
 	-------------------
 	automatic front-end selection : behavior
-		When `mask_filter_bank` is `None`, `sample_rate` together with `num_bands` requests the
-		overlapped mel-band front end from `MelBandRoformer` [2]. Otherwise the constructor derives
-		the non-overlapping band layout from `freqs_per_bands`, matching `BSRoformer` [1].
+		When `mask_filter_bank` is `None` and both `sample_rate` and `num_bands` are provided, the
+		constructor builds one overlapped mel-band front end with
+		`torchaudio.functional.melscale_fbanks` [2]. Otherwise the constructor derives one
+		non-overlapping band layout from `freqs_per_bands`.
 	compatibility parameters : behavior
 		`dim_freqs_in` and `linear_transformer_depth` remain in `__init__` for configuration
 		compatibility. `dim_freqs_in` is ignored because the effective frequency layout comes from the
@@ -139,9 +133,9 @@ class BandSplitRotator(Module):
 		`LinearAttention` block.
 	effective default selection : behavior
 		`final_norm`, `norm_output`, and `zero_dc` accept `None` only to preserve historical behavior
-		from configuration files made for `BSRoformer` [8] and `MelBandRoformer` [9]. In mel-band mode
-		the effective defaults are `final_norm=False`, `norm_output=True`, and `zero_dc=False`. In
-		non-overlapping band-split mode the effective defaults are `final_norm=True`,
+		from earlier package releases. In mel-band mode the effective defaults are
+		`final_norm=False`, `norm_output=True`, and `zero_dc=False`. In non-overlapping band-split
+		mode the effective defaults are `final_norm=True`,
 		`norm_output=False`, and `zero_dc=True`. New configuration files are easier to reason about
 		when all three values are set explicitly.
 
@@ -162,21 +156,20 @@ class BandSplitRotator(Module):
 		`ff_dropout`, `sage_attention`, and `scale`.
 	stem selection : behavior
 		`forward` accepts `active_stem_ids`. The selected mask-estimator head index list becomes the
-		`stem_ids` value passed to `hunterFormsBS.bandSplit.lossComputation` [7], so an external
-		training loop can request the configured target stem index list [7].
+		`stem_ids` value passed to `hunterFormsBS.bandSplit.lossComputation` [1], so an external
+		training loop can request the configured target stem index list [1].
 	checkpointing : behavior
-		`use_torch_checkpoint` wraps `self.band_split`, the time transformer block, the frequency
-		transformer block, and each mask-estimator head with activation checkpointing [10]. This
-		behavior is practical for memory-constrained training in external frameworks such as
-		Music-Source-Separation-Training [7], but it is not a defining architectural requirement from
-		the model papers [1][2].
+		`use_torch_checkpoint` applies activation checkpointing to `self.band_split`, the time
+		transformer block, the frequency transformer block, and each mask-estimator head [7]. This
+		behavior is practical for memory-constrained training, but it is not a defining architectural
+		requirement.
 
 	References
 	----------
-	[1] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation with
-		Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
-	[2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
-		Transcription https://arxiv.org/abs/2409.04702
+	[1] `hunterFormsBS.bandSplit.lossComputation`
+
+	[2] torchaudio.functional.melscale_fbanks - torchaudio
+		https://docs.pytorch.org/audio/stable/generated/torchaudio.functional.melscale_fbanks.html
 	[3] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., & Liu, Y. (2021). RoFormer: Enhanced
 		Transformer with Rotary Position Embedding. https://arxiv.org/abs/2104.09864
 	[4] Gopalakrishnan, A., Csordás, R., Schmidhuber, J., & Mozer, M. C. (2025). Decoupling the
@@ -187,13 +180,7 @@ class BandSplitRotator(Module):
 	[6] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., & Chen, J. (2025).
 		SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration.
 		https://arxiv.org/abs/2410.02367
-	[7] `hunterFormsBS.bandSplit.lossComputation`
-
-	[8] `hunterFormsBS.bs_roformer.BSRoformer`
-
-	[9] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
-
-	[10] torch.utils.checkpoint.checkpoint
+	[7] torch.utils.checkpoint.checkpoint
 		https://docs.pytorch.org/docs/stable/checkpoint.html
 	"""
 	def __init__(
@@ -275,10 +262,10 @@ class BandSplitRotator(Module):
 
 		You can use `__init__` to choose the band layout, the hierarchical attention layout, the
 		attention backend, the forward and inverse STFT settings, the internal multi-resolution STFT
-		loss settings, and the compatibility switches for the converged separator. `__init__` keeps
+		loss settings, and the optional segmentation-style mask-estimator branch. `__init__` keeps
 		parameter identifiers aligned with downstream components so one configuration record can pass
 		through the package without renaming. `__init__` still accepts several compatibility fields
-		from older packages and has vestigial parameters.
+		from earlier package releases.
 
 		Parameters
 		----------
@@ -306,10 +293,9 @@ class BandSplitRotator(Module):
 			`None` keeps the downstream default.
 		final_norm : bool | None = None
 			Toggle the final normalization module. `None` is a compatibility sentinel for
-			configuration files that relied on the historical defaults of `BSRoformer` [8] and
-			`MelBandRoformer` [9], not a distinct modeling mode. The effective default is `True` in
-			non-overlapping band-split mode and `False` in mel-band mode. New configuration files
-			should set `final_norm` explicitly.
+			configuration files that relied on earlier mode-specific defaults, not a distinct modeling
+			mode. The effective default is `True` in non-overlapping band-split mode and `False` in
+			mel-band mode. New configuration files should set `final_norm` explicitly.
 		flash_attn : bool = True
 			Request the flash-attention or scaled-dot-product-attention path inside downstream
 			attention blocks when `sage_attention` is `False` and the backend supports that path.
@@ -326,25 +312,25 @@ class BandSplitRotator(Module):
 			does not insert a separate linear-attention sublayer.
 		mask_estimator_depth : int = 1
 			Depth of the per-band MLP inside each mask-estimator head. This unified implementation
-			defaults to `1`. Ports from older `BSRoformer` setups that assumed `2` should set
+			defaults to `1`. Ports from older configuration files that assumed `2` should set
 			`mask_estimator_depth=1` explicitly.
 		mask_filter_bank : Tensor | None = None
 			Custom band-membership `Tensor` with shape `(band, freq)`. Entry `(bandIndex,
 			frequencyIndex)` is truthy when that frequency bin belongs to that band. When
 			`mask_filter_bank` is provided, `__init__` skips automatic band construction. When
 			`mask_filter_bank` is `None` and mel-band mode is selected, `__init__` calls
-			`torchaudio.functional.melscale_fbanks` [10], converts the returned filter bank to one
+			`torchaudio.functional.melscale_fbanks` [1], converts the returned filter bank to one
 			Boolean membership map, and forces the first and last frequency bins into the first and
 			last bands. When `mask_filter_bank` is `None` and non-overlapping band-split mode is
 			selected, `__init__` derives the Boolean membership map from `freqs_per_bands`.
 		match_input_audio_length : bool = True
 			When `True`, inverse STFT reconstruction is forced back to the original waveform length.
 		melscale_fbanks_mel_scale : str = 'slaney'
-			Mel-scale formula name forwarded to `torchaudio.functional.melscale_fbanks` [10] during
+			Mel-scale formula name forwarded to `torchaudio.functional.melscale_fbanks` [1] during
 			automatic mel-band construction. `melscale_fbanks_mel_scale` is ignored when
 			`mask_filter_bank` is provided or non-overlapping band-split mode is selected.
 		melscale_fbanks_norm : str | None = 'slaney'
-			Mel-filter normalization rule forwarded to `torchaudio.functional.melscale_fbanks` [10]
+			Mel-filter normalization rule forwarded to `torchaudio.functional.melscale_fbanks` [1]
 			during automatic mel-band construction. `None` disables normalization.
 			`melscale_fbanks_norm` is ignored when `mask_filter_bank` is provided or
 			non-overlapping band-split mode is selected.
@@ -364,8 +350,8 @@ class BandSplitRotator(Module):
 		norm_output : bool | None = None
 			Output-normalization toggle inside each downstream transformer block. `None` is a
 			compatibility sentinel for configuration files that depended on historical mode-specific
-			defaults [8][9]. The effective default is `False` in non-overlapping band-split mode and
-			`True` in mel-band mode. New configuration files should set `norm_output` explicitly.
+			defaults. The effective default is `False` in non-overlapping band-split mode and `True`
+			in mel-band mode. New configuration files should set `norm_output` explicitly.
 		num_bands : int | None = None
 			Number of bands for automatic front-end construction. When `mask_filter_bank` is omitted,
 			`sample_rate` together with `num_bands` selects mel-band mode. When `mask_filter_bank` is
@@ -375,7 +361,7 @@ class BandSplitRotator(Module):
 		num_stems : int = 1
 			Number of configured output sources.
 		sage_attention : bool = False
-			Request `sageattention.sageattn` from `SageAttention` [5][6] inside downstream attention
+			Request `sageattention.sageattn` from `SageAttention` [2][3] inside downstream attention
 			blocks. `hunterFormsBS` does not install `SageAttention`, so install the package manually
 			before setting `sage_attention=True`.
 		sample_rate : float | None = None
@@ -404,59 +390,70 @@ class BandSplitRotator(Module):
 			inverse STFT.
 		time_transformer_depth : int = 2
 			Depth of the per-layer time-axis transformer block.
-		use_hyperACE: bool = False
-			Apply Hypergraph-based Adaptive Correlation Enhancement (HyperACE) to `MaskEstimator`.
-			https://arxiv.org/abs/2506.17733
+		use_hyperACE : bool = False
+			Whether each mask-estimator head adds the optional segmentation-style branch described by
+			`hunterFormsBS.hyperACE.SegmModel.__init__` [4].
 		use_pope : bool = False
-			Replace RoPE [3] with PoPE [4] in the downstream time-axis and frequency-axis attention
+			Replace RoPE with PoPE in the downstream time-axis and frequency-axis attention
 			blocks.
 		use_torch_checkpoint : bool = False
 			Enable activation checkpointing for `self.band_split`, each transformer block, and each
-			mask-estimator head [11]. This option exists to ease memory-constrained training in
-			external frameworks such as Music-Source-Separation-Training [7].
+			mask-estimator head.
 		zero_dc : bool | None = None
 			Toggle zeroing of the DC (zero-frequency) bin before inverse STFT reconstruction. `None`
 			is a compatibility sentinel for configuration files that relied on historical
-			mode-specific defaults [8][9]. The effective default is `True` in non-overlapping
-			band-split mode and `False` in mel-band mode. New configuration files should set `zero_dc`
+			mode-specific defaults. The effective default is `True` in non-overlapping band-split mode
+			and `False` in mel-band mode. New configuration files should set `zero_dc`
 			explicitly.
+
+		Other Parameters
+		----------------
+		segmentation output geometry : forwarded parameter family
+			See `hunterFormsBS.hyperACE.SegmModel.__init__` [4]. `BandSplitRotator` forwards
+			`segm_out_bins` and `segm_out_channels`.
+		backbone parameters : forwarded parameter family
+			See `hunterFormsBS.hyperACE.Backbone.__init__` [5]. `BandSplitRotator` forwards
+			`segm_base_channels`, `segm_base_depth`, and `segm_backbone_channels`.
+		hypergraph size and branch parameters : forwarded parameter family
+			See `hunterFormsBS.hyperACE.HyperACE.__init__` [6]. `BandSplitRotator` forwards
+			`segm_num_hyperedges`, `segm_num_heads`, and the `segm_hyperace_*` family.
+		decoder parameters : forwarded parameter family
+			See `hunterFormsBS.hyperACE.Decoder.__init__` [7]. `BandSplitRotator` forwards
+			`segm_decoder_channels`, `segm_decoder_block_depth`, `segm_decoder_block_kernel`, and
+			`segm_decoder_block_expansion`.
+		upsample and shared layer settings : forwarded parameter family
+			See `hunterFormsBS.hyperACE.ProgressiveUpsampleHead.__init__` [8]. `BandSplitRotator`
+			forwards `segm_upsample_scales`, `segm_upsample_tfc_tdf_depth`,
+			`segm_upsample_tfc_tdf_bn`, `segm_activation`, `segm_norm_eps`,
+			`segm_norm_affine`, `segm_conv_bias`, and `segm_linear_bias`.
 
 		Size-mismatch error when loading weights
 		----------------------------------------
-		If you are using a checkpoint and configuration file created with a `BSRoformer` `class`, and
-		you get a size-mismatch error when loading the checkpoint, check `mask_estimator_depth` in the
-		configuration file. The original `BSRoformer` implementation used `mask_estimator_depth=2` and
-		later subtracted one from that value. This package eliminates the subtraction, so the
-		effective default is `mask_estimator_depth=1`. Change the configuration file to
-		`mask_estimator_depth=1`, and the size-mismatch error should be resolved.
+		If you are using a checkpoint and configuration file copied from an earlier non-overlapping
+		release, and you get a size-mismatch error when loading the checkpoint, check
+		`mask_estimator_depth` in the configuration file. The earlier release behavior effectively
+		used `mask_estimator_depth=1` even when configuration files stored `2`, because a later
+		subtraction was applied. This package eliminates that subtraction, so the direct equivalent is
+		`mask_estimator_depth=1`.
 
 		References
 		----------
-		[1] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation with
-			Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
-		[2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
-			Transcription https://arxiv.org/abs/2409.04702
-		[3] Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., & Liu, Y. (2021). RoFormer: Enhanced
-			Transformer with Rotary Position Embedding. https://arxiv.org/abs/2104.09864
-		[4] Gopalakrishnan, A., Csordás, R., Schmidhuber, J., & Mozer, M. C. (2025). Decoupling the
-			"What" and "Where" With Polar Coordinate Positional Embeddings.
-			https://arxiv.org/abs/2509.10534
-		[5] thu-ml/SageAttention
+		[1] torchaudio.functional.melscale_fbanks - torchaudio
+			https://docs.pytorch.org/audio/stable/generated/torchaudio.functional.melscale_fbanks.html
+		[2] thu-ml/SageAttention
 			https://github.com/thu-ml/SageAttention
-		[6] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., & Chen, J. (2025).
+		[3] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., & Chen, J. (2025).
 			SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration.
 			https://arxiv.org/abs/2410.02367
-		[7] ZFTurbo/Music-Source-Separation-Training
-			https://github.com/ZFTurbo/Music-Source-Separation-Training
-		[8] `hunterFormsBS.bs_roformer.BSRoformer`
+		[4] `hunterFormsBS.hyperACE.SegmModel.__init__`
 
-		[9] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
+		[5] `hunterFormsBS.hyperACE.Backbone.__init__`
 
-		[10] torchaudio.functional.melscale_fbanks - torchaudio
-			https://docs.pytorch.org/audio/stable/generated/torchaudio.functional.melscale_fbanks.html
+		[6] `hunterFormsBS.hyperACE.HyperACE.__init__`
 
-		[11] torch.utils.checkpoint.checkpoint
-			https://docs.pytorch.org/docs/stable/checkpoint.html
+		[7] `hunterFormsBS.hyperACE.Decoder.__init__`
+
+		[8] `hunterFormsBS.hyperACE.ProgressiveUpsampleHead.__init__`
 		"""
 		super().__init__()
 
@@ -665,9 +662,9 @@ class BandSplitRotator(Module):
 		Framework adaptation
 		--------------------
 		activation checkpointing : behavior
-			When `self.use_torch_checkpoint` is `True`, `forward` wraps `self.band_split`, the time
-			transformer block, the frequency transformer block, and each mask-estimator head with
-			activation checkpointing [9]. Activation checkpointing recomputes intermediate activations
+			When `self.use_torch_checkpoint` is `True`, `forward` applies activation checkpointing to
+			`self.band_split`, the time transformer block, the frequency transformer block, and each
+			mask-estimator head [9]. Activation checkpointing recomputes intermediate activations
 			during the backward pass, which lowers activation memory use at the cost of extra compute
 			[9].
 		stem-target interoperability : behavior

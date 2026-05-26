@@ -59,8 +59,7 @@ class BandSplit(Module):
 	tokens with a common feature width. `BandSplit` treats the last axis of the input `Tensor` as
 	consecutive band slices, applies one learned projection module to each slice, and returns one
 	`Tensor` with an explicit band axis. `BandSplit` is the shared front-end projector used by
-	`hunterFormsBS.bandSplitRotator.BandSplitRotator` [1], `hunterFormsBS.bs_roformer.BSRoformer` [2]
-	and `hunterFormsBS.mel_band_roformer.MelBandRoformer` [3].
+	`hunterFormsBS.bandSplitRotator.BandSplitRotator` [1].
 
 	Attributes
 	----------
@@ -73,10 +72,6 @@ class BandSplit(Module):
 	References
 	----------
 	[1] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
-
-	[2] `hunterFormsBS.bs_roformer.BSRoformer`
-
-	[3] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 	"""
 	def __init__(self, dim: int, dim_inputs: Sequence[int]) -> None:
 		"""Configure one projection module per input band.
@@ -152,8 +147,7 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 	count, computes one waveform-domain mean absolute error term, accumulates one complex-STFT mean
 	absolute error term across the configured resolutions, and combines both terms into one total
 	loss. `lossComputation` is the shared training-loss helper used by
-	`hunterFormsBS.bandSplitRotator.BandSplitRotator` [3], `hunterFormsBS.bs_roformer.BSRoformer` [4],
-	and `hunterFormsBS.mel_band_roformer.MelBandRoformer` [5].
+	`hunterFormsBS.bandSplitRotator.BandSplitRotator` [3].
 
 	Parameters
 	----------
@@ -203,10 +197,10 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 	PyTorch
 	-------
 	complex loss semantics : behavior
-		`multi_stft_resolution_loss` is accumulated with `torch.nn.functional.l1_loss` [6] on the
-		complex STFT tensors returned by `torch.stft` [7]. In PyTorch, `torch.nn.functional.l1_loss`
-		is equivalent to `torch.abs(input - target).mean()` [6], so the implemented complex norm uses
-		the complex modulus from `torch.abs` [8] rather than an explicit sum of separate real and
+		`multi_stft_resolution_loss` is accumulated with `torch.nn.functional.l1_loss` [4] on the
+		complex STFT tensors returned by `torch.stft` [5]. In PyTorch, `torch.nn.functional.l1_loss`
+		is equivalent to `torch.abs(input - target).mean()` [4], so the implemented complex norm uses
+		the complex modulus from `torch.abs` [6] rather than an explicit sum of separate real and
 		imaginary MAEs.
 
 	Sequence Alignment
@@ -224,15 +218,11 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 		Transcription https://arxiv.org/abs/2409.04702
 	[3] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-	[4] `hunterFormsBS.bs_roformer.BSRoformer`
-
-	[5] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
-
-	[6] torch.nn.functional.l1_loss - PyTorch
+	[4] torch.nn.functional.l1_loss - PyTorch
 		https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.l1_loss.html
-	[7] torch.stft - PyTorch
+	[5] torch.stft - PyTorch
 		https://docs.pytorch.org/docs/stable/generated/torch.stft.html
-	[8] torch.abs - PyTorch
+	[6] torch.abs - PyTorch
 		https://docs.pytorch.org/docs/stable/generated/torch.abs.html
 	"""
 	device: torch.device = recon_audio.device

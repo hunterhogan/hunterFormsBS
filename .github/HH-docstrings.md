@@ -460,7 +460,7 @@ def exampleFunction(data: list[int]) -> int:
 - Cite references in the text using `[1]`, `[2]`, etc., immediately after the relevant term or concept.
 - Multiple references for one concept: `[1, 2]` or `[1][2]` (be consistent within a docstring).
 - List references in order of first citation.
-- For same-package references, wrap the referenced module path or symbol name in backticks.
+- For same-package references, enclose the referenced module path or symbol name in backticks.
 - When the referenced symbol is in the same module, use only the local symbol name in backticks.
 - When the referenced symbol is in another module of the same package, use the full package path in
     backticks.

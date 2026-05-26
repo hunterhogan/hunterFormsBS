@@ -1,7 +1,8 @@
-- The stable wrappers are now converged around `BandSplitRotator`, with `BSRoformer` and `MelBandRoformer` serving as transition / compatibility classes rather than separate experimental paths.
+- The stable public separator surface is now `BandSplitRotator`; do not describe `BSRoformer` or `MelBandRoformer` as live APIs.
+- Docstrings should describe BS-style and mel-band behavior as band-layout modes on `BandSplitRotator`.
 - Docstrings should distinguish active behavior from compatibility-only parameters, especially `linear_transformer_depth`, `dim_freqs_in`, `mc_hyper_conn_sinkhorn_iters`, and `num_residual_fracs`.
-- Keep parameter identifiers consistent through wrapper, transformer, and attention classes. Examples: constructor `attn_dropout` should remain `attn_dropout` downstream, while module attributes can use explicit names such as `nn_Dropout` when they are layer objects.
+- Keep parameter identifiers consistent through `BandSplitRotator`, transformer, and attention classes. Examples: constructor `attn_dropout` should remain `attn_dropout` downstream, while module attributes can use explicit names such as `nn_Dropout` when they are layer objects.
 - `linear_transformer_depth` can still set the downstream `linear_attn` compatibility flag, but the current transformer stack no longer implements `LinearAttention`.
 - `sage_attention` is supported as an optional backend, but the `SageAttention` package is not installed by this repo and should be documented as a manual dependency.
-- The former `attend_experimental.py`, `bs_roformer_experimental.py`, and `mel_band_roformer_experimental.py` modules were removed after their useful options were integrated into the stable modules.
+- The former `attend_experimental.py`, `bs_roformer_experimental.py`, `mel_band_roformer_experimental.py`, `bs_roformer.py`, and `mel_band_roformer.py` modules were removed after their useful options were integrated into the stable modules.
 - When documenting automatic mel-band construction, mention `torchaudio.functional.melscale_fbanks` together with `melscale_fbanks_mel_scale` and `melscale_fbanks_norm`; for custom layouts, tell users to pass `mask_filter_bank` explicitly.

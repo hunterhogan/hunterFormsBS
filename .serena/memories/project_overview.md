@@ -2,15 +2,14 @@
 - Python package under `src/hunterFormsBS` for typed PyTorch audio / music source-separation models.
 - Packaging facts from `pyproject.toml`: Python `>=3.12`, build backend `uv_build`, typed package (`Typing :: Typed`).
 - Main runtime dependencies include `torch`, `einops`, `pope-pytorch`, `rotary-embedding-torch`, and `torch-einops-kit`.
-- Public package export in `src/hunterFormsBS/__init__.py`: `BandSplitRotator`. `BSRoformer` and `MelBandRoformer` remain available from their submodules as transition / compatibility classes.
+- Public package export in `src/hunterFormsBS/__init__.py`: `BandSplitRotator` only.
 - Current converged architecture:
-  - `bandSplitRotator.py`: unified `BandSplitRotator` separator for BS-style non-overlapping bands, mel-band layouts, and custom band layouts. Its constructor exposes downstream options and passes them through with stable parameter identifiers.
-  - `bs_roformer.py` / `mel_band_roformer.py`: stable transition modules with familiar APIs and defaults; former experimental options have been integrated into these classes and `BandSplitRotator`.
+  - `bandSplitRotator.py`: unified `BandSplitRotator` separator for non-overlapping BS-style bands, automatic mel-band layouts, and custom band layouts. Its constructor exposes downstream attention, transformer, mask-estimator, optional HyperACE segmentation-branch, STFT, and loss options with stable parameter identifiers.
   - `attend.py`: shared `Attend`, `Attention`, `FeedForward`, and `Transformer` building blocks. `LinearAttention` has been removed; `linear_attn` / `linear_transformer_depth` are compatibility flags only.
-  - `bandSplit.py`: `BandSplit`, `MaskEstimator`, `lossComputation`, and `DEFAULT_FREQS_PER_BANDS`; mel-band layouts are now built at runtime by higher-level constructors with `torchaudio.functional.melscale_fbanks`.
-  - `theTypes.py`: typed config helpers using clearer names such as `ParametersAttention`, `ParametersComputeLoss`, `ParametersSTFT`, `ParametersTransformer`, and `FlashAttentionConfig`.
+  - `bandSplit.py`: `BandSplit`, `MaskEstimator`, `lossComputation`, and `DEFAULT_FREQS_PER_BANDS`; mel-band layouts are built at runtime by `BandSplitRotator` with `torchaudio.functional.melscale_fbanks`.
+  - `hyperACE.py`: optional segmentation-style mask-estimation branch and reusable building blocks used when `use_hyperACE=True`.
+  - `theTypes.py`: typed config helpers including `ParametersAttention`, `ParametersComputeLoss`, `ParametersMaskEstimator`, `ParametersSTFT`, `ParametersTransformer`, and `FlashAttentionConfig`.
   - There is no separate static mask-filter-bank helper module anymore; custom layouts should pass `mask_filter_bank` explicitly, and automatic mel-band layouts use `torchaudio.functional.melscale_fbanks`.
-  - `bs_roformerUNWA.py`: retained reference / ported variant, not the primary public path.
-- Removed modules: `attend_experimental.py`, `bs_roformer_experimental.py`, and `mel_band_roformer_experimental.py`; do not treat `*_experimental.py` as live package modules.
+- Removed modules: `attend_experimental.py`, `bs_roformer_experimental.py`, `mel_band_roformer_experimental.py`, `bs_roformer.py`, and `mel_band_roformer.py`; do not treat those modules as live package modules.
 - Optional `sage_attention=True` requests the separately installed `thu-ml/SageAttention` backend; this repo does not install `SageAttention` automatically.
-- README includes migration help for `mask_estimator_depth` when loading older `BSRoFormer` configs / checkpoints.
+- README includes migration help for `mask_estimator_depth` when loading older BS-style configs / checkpoints.

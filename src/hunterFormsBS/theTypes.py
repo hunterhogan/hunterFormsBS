@@ -2,10 +2,10 @@
 
 You can use this module to access the small record classes that group related keyword arguments and
 pass those keyword arguments through several constructor layers without renaming fields. The records
-keep the attention stack, the STFT helpers, and the separator models aligned when one outer model
-configures several downstream classes. The records are consumed by `hunterFormsBS.attend` [1],
-`hunterFormsBS.bandSplit` [2], `hunterFormsBS.bandSplitRotator.BandSplitRotator` [3],
-`hunterFormsBS.bs_roformer.BSRoformer` [4], and `hunterFormsBS.mel_band_roformer.MelBandRoformer` [5].
+keep the attention stack, the mask-estimation heads, the optional segmentation branch, the STFT
+helpers, and the separator model aligned when one outer model configures several downstream classes.
+The records are consumed by `hunterFormsBS.attend` [1], `hunterFormsBS.bandSplit` [2],
+`hunterFormsBS.bandSplitRotator.BandSplitRotator` [3], and `hunterFormsBS.hyperACE` [4].
 
 Contents
 --------
@@ -16,6 +16,8 @@ Classes
 		Collect one attention-block keyword record.
 	ParametersComputeLoss
 		Collect one multi-resolution STFT loss keyword record.
+	ParametersMaskEstimator
+		Collect one mask-estimator keyword record.
 	ParametersSTFT
 		Collect one forward-and-inverse STFT keyword record.
 	ParametersTransformer
@@ -29,20 +31,17 @@ References
 
 [3] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
 
-[4] `hunterFormsBS.bs_roformer.BSRoformer`
-
-[5] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
+[4] `hunterFormsBS.hyperACE`
 """
 from __future__ import annotations
 
-from torch import nn
 from typing import NamedTuple, TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
 	from collections.abc import Callable
 	from PoPE_pytorch import PoPE
 	from rotary_embedding_torch import RotaryEmbedding
-	from torch import Tensor
+	from torch import nn, Tensor
 
 class FlashAttentionConfig(NamedTuple):
 	"""Store one scaled-dot-product-attention backend selection record.
@@ -140,6 +139,61 @@ class ParametersComputeLoss(TypedDict):
 	window_fn: Callable[..., Tensor]
 
 class ParametersMaskEstimator(TypedDict):
+	"""Collect one mask-estimator keyword record.
+
+	You can use `ParametersMaskEstimator` to keep the full `MaskEstimator` keyword family together
+	while `BandSplitRotator` forwards stable field names into each mask-estimator head [1]. The
+	record stores the shared band-local MLP settings, the `use_hyperACE` switch, and the `segm_*`
+	parameter families for the optional segmentation-style branch [2].
+
+	Attributes
+	----------
+	activation : type[nn.Module]
+		Activation class instantiated inside each band-local `MLP` head.
+	dim : int
+		Feature width of each input band token.
+	depth : int
+		Number of hidden-width repeats inside each band-local `MLP` head.
+	mlp_expansion_factor : int
+		Hidden-width multiplier relative to `dim` for each band-local `MLP` head.
+	use_hyperACE : bool
+		Whether each mask-estimator head adds the optional segmentation-style branch [2].
+
+	Other Parameters
+	----------------
+	segmentation output geometry : forwarded parameter family
+		See `hunterFormsBS.hyperACE.SegmModel.__init__` [2]. `ParametersMaskEstimator` stores
+		`segm_out_bins` and `segm_out_channels`.
+	backbone parameters : forwarded parameter family
+		See `hunterFormsBS.hyperACE.Backbone.__init__` [3]. `ParametersMaskEstimator` stores
+		`segm_base_channels`, `segm_base_depth`, and `segm_backbone_channels`.
+	hypergraph size and branch parameters : forwarded parameter family
+		See `hunterFormsBS.hyperACE.HyperACE.__init__` [4]. `ParametersMaskEstimator` stores
+		`segm_num_hyperedges`, `segm_num_heads`, and the `segm_hyperace_*` family.
+	decoder parameters : forwarded parameter family
+		See `hunterFormsBS.hyperACE.Decoder.__init__` [5]. `ParametersMaskEstimator` stores
+		`segm_decoder_channels`, `segm_decoder_block_depth`, `segm_decoder_block_kernel`, and
+		`segm_decoder_block_expansion`.
+	upsample and shared layer settings : forwarded parameter family
+		See `hunterFormsBS.hyperACE.ProgressiveUpsampleHead.__init__` [6].
+		`ParametersMaskEstimator` stores `segm_upsample_scales`, `segm_upsample_tfc_tdf_depth`,
+		`segm_upsample_tfc_tdf_bn`, `segm_activation`, `segm_norm_eps`, `segm_norm_affine`,
+		`segm_conv_bias`, and `segm_linear_bias`.
+
+	References
+	----------
+	[1] `hunterFormsBS.bandSplit.MaskEstimator`
+
+	[2] `hunterFormsBS.hyperACE.SegmModel.__init__`
+
+	[3] `hunterFormsBS.hyperACE.Backbone.__init__`
+
+	[4] `hunterFormsBS.hyperACE.HyperACE.__init__`
+
+	[5] `hunterFormsBS.hyperACE.Decoder.__init__`
+
+	[6] `hunterFormsBS.hyperACE.ProgressiveUpsampleHead.__init__`
+	"""
 	activation: type[nn.Module]
 	dim: int
 	depth: int
