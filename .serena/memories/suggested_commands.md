@@ -27,4 +27,4 @@
 - Package invocation:
   - Primary intended entrypoint is `BandSplitRotator` from Python imports.
   - `bs_roformer.py` and `mel_band_roformer.py` are transition / compatibility modules for familiar `BSRoformer` and `MelBandRoformer` APIs.
-  - `make_static_mask_filter_bank.py` can be imported directly when static mask filter-bank tensor constants need to be generated.
+  - There is no separate static mask filter-bank helper module. Use `melscale_fbanks_mel_scale` and `melscale_fbanks_norm` on `BandSplitRotator` or `MelBandRoformer`, or pass `mask_filter_bank` explicitly.

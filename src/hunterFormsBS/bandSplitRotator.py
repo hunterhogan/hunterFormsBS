@@ -6,13 +6,13 @@ mel-band front end from `MelBandRoformer` [2]. The public `class` `BandSplitRota
 constructor parameters from downstream attention, transformer, mask-estimator, STFT, and loss
 components.
 
-For the common lucidrains-style mel-band layout, `BandSplitRotator` uses
-`hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default` [3] when `mask_filter_bank` is `None`,
-`sample_rate == 44100`, `stft_n_fft == 2048`, and `num_bands == 60`. For other mel-band or
-non-overlapping layouts, pass `mask_filter_bank` explicitly or generate one static definition with
-`hunterFormsBS.make_static_mask_filter_bank` [4]. When `sage_attention=True`, downstream attention
-blocks attempt to call the separately installed `SageAttention` package [5][6]. `hunterFormsBS` does
-not install `SageAttention` automatically.
+When `mask_filter_bank` is `None` and mel-band mode is selected, `BandSplitRotator` builds the band
+layout at runtime with `torchaudio.functional.melscale_fbanks` [3].
+`melscale_fbanks_mel_scale` and `melscale_fbanks_norm` are forwarded to that `torchaudio` call [3].
+For non-overlapping layouts, `BandSplitRotator` derives the Boolean band-membership map from
+`freqs_per_bands`. For custom layouts, pass `mask_filter_bank` explicitly. When
+`sage_attention=True`, downstream attention blocks attempt to call the separately installed
+`SageAttention` package [4][5]. `hunterFormsBS` does not install `SageAttention` automatically.
 
 Contents
 --------
@@ -27,13 +27,11 @@ References
 	Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
 [2] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
 	Transcription https://arxiv.org/abs/2409.04702
-[3] `hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default`
-
-[4] `hunterFormsBS.make_static_mask_filter_bank`
-
-[5] thu-ml/SageAttention
+[3] torchaudio.functional.melscale_fbanks - torchaudio
+	https://docs.pytorch.org/audio/stable/generated/torchaudio.functional.melscale_fbanks.html
+[4] thu-ml/SageAttention
 	https://github.com/thu-ml/SageAttention
-[6] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., & Chen, J. (2025).
+[5] Zhang, J., Wei, J., Huang, H., Zhang, P., Zhu, J., & Chen, J. (2025).
 	SageAttention: Accurate 8-Bit Attention for Plug-and-play Inference Acceleration.
 	https://arxiv.org/abs/2410.02367
 """
@@ -42,7 +40,7 @@ from __future__ import annotations
 from einops import pack, rearrange, reduce, repeat, unpack  # pyright: ignore[reportUnknownVariableType]
 from functools import partial
 from hunterFormsBS.attend import Transformer
-from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, mask_filter_bank_mel_band_default, MaskEstimator
+from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, MaskEstimator
 from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersSTFT, ParametersTransformer
 from hunterMakesPy import raiseIfNone
 from more_itertools import loops
@@ -55,6 +53,7 @@ from torch.utils.checkpoint import checkpoint  # pyright: ignore[reportUnknownVa
 from torch_einops_kit import exists
 from torch_einops_kit.einops import pack_one, unpack_one
 from torch_einops_kit.scaleValues import RMSNorm
+from torchaudio.functional import melscale_fbanks
 from typing import cast, TYPE_CHECKING
 from Z0Z_tools import halfsineTensor
 import torch
@@ -217,6 +216,8 @@ class BandSplitRotator(Module):
 		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
+		melscale_fbanks_mel_scale: str = 'slaney',
+		melscale_fbanks_norm: str | None = 'slaney',
 		mlp_expansion_factor: int = 4,
 		multi_stft_hop_size: int = 147,
 		multi_stft_normalized: bool = False,
@@ -302,13 +303,23 @@ class BandSplitRotator(Module):
 		mask_filter_bank : Tensor | None = None
 			Custom band-membership `Tensor` with shape `(band, freq)`. Entry `(bandIndex,
 			frequencyIndex)` is truthy when that frequency bin belongs to that band. When
-			`mask_filter_bank` is provided, `__init__` skips automatic BS-mode or mel-mode band
-			construction. For ad-hoc custom generation,
-			`hunterFormsBS.make_static_mask_filter_bank.librosa_filters_mel` and
-			`hunterFormsBS.make_static_mask_filter_bank.filter_bank_non_overlapping` print paste-ready
-			static definitions [10].
+			`mask_filter_bank` is provided, `__init__` skips automatic band construction. When
+			`mask_filter_bank` is `None` and mel-band mode is selected, `__init__` calls
+			`torchaudio.functional.melscale_fbanks` [10], converts the returned filter bank to one
+			Boolean membership map, and forces the first and last frequency bins into the first and
+			last bands. When `mask_filter_bank` is `None` and non-overlapping band-split mode is
+			selected, `__init__` derives the Boolean membership map from `freqs_per_bands`.
 		match_input_audio_length : bool = True
 			When `True`, inverse STFT reconstruction is forced back to the original waveform length.
+		melscale_fbanks_mel_scale : str = 'slaney'
+			Mel-scale formula name forwarded to `torchaudio.functional.melscale_fbanks` [10] during
+			automatic mel-band construction. `melscale_fbanks_mel_scale` is ignored when
+			`mask_filter_bank` is provided or non-overlapping band-split mode is selected.
+		melscale_fbanks_norm : str | None = 'slaney'
+			Mel-filter normalization rule forwarded to `torchaudio.functional.melscale_fbanks` [10]
+			during automatic mel-band construction. `None` disables normalization.
+			`melscale_fbanks_norm` is ignored when `mask_filter_bank` is provided or
+			non-overlapping band-split mode is selected.
 		mlp_expansion_factor : int = 4
 			Hidden-width expansion factor inside each mask-estimator MLP.
 		multi_stft_hop_size : int = 147
@@ -413,11 +424,12 @@ class BandSplitRotator(Module):
 
 		[9] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 
-		[10] `hunterFormsBS.make_static_mask_filter_bank`
+		[10] torchaudio.functional.melscale_fbanks - torchaudio
+			https://docs.pytorch.org/audio/stable/generated/torchaudio.functional.melscale_fbanks.html
 
 		[11] torch.utils.checkpoint.checkpoint
 			https://docs.pytorch.org/docs/stable/checkpoint.html
-		"""  # noqa: DOC501
+		"""
 		super().__init__()
 
 		# class attributes, including backward compatibility
@@ -429,21 +441,20 @@ class BandSplitRotator(Module):
 		self.use_torch_checkpoint: bool = use_torch_checkpoint
 
 		if mask_filter_bank is None:
-			if (sample_rate is not None) and (num_bands is not None):
+			if (num_bands is not None) and (sample_rate is not None):
 				# Tantamount to `MelBandRoformer = True`.
-				if (stft_n_fft == 2048) and (num_bands == 60) and (sample_rate == 44100):
-					mask_filter_bank = mask_filter_bank_mel_band_default
-				else:
-					message: str = (
-						f'I received `{stft_n_fft = }`, `{num_bands = }`, and `{sample_rate = }`, but '
-						'I only provide one built-in mel-band `mask_filter_bank` when '
-						'`mask_filter_bank` is `None`: `stft_n_fft == 2048`, `num_bands == 60`, and '
-						'`sample_rate == 44100`. If your checkpoint uses a different mel-band split, '
-						'pass `mask_filter_bank` explicitly. You can generate a static '
-						'`mask_filter_bank` value with '
-						'`hunterFormsBS.make_static_mask_filter_bank.librosa_filters_mel`.'
-					)
-					raise ValueError(message)
+				filter_bank: Tensor = melscale_fbanks(n_freqs=stft_n_fft // 2 + 1
+													, f_min=0.0
+													, f_max=sample_rate / 2.0
+													, n_mels=num_bands
+													, sample_rate=int(sample_rate)
+													, norm=melscale_fbanks_norm
+													, mel_scale=melscale_fbanks_mel_scale)
+				filter_bank = filter_bank.T
+				mask_filter_bank = 0 < filter_bank
+				mask_filter_bank[0, 0] = True
+				mask_filter_bank[-1, -1] = True
+
 				mask_estimator_depth = mask_estimator_depth or 1
 				if final_norm is None:
 					final_norm = False

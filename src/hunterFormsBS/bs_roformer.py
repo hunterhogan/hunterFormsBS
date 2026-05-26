@@ -200,6 +200,8 @@ class BSRoformer(Module):
 		mask_estimator_depth: int | None = None,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
+		melscale_fbanks_mel_scale: str = 'slaney',  # noqa: ARG002
+		melscale_fbanks_norm: str | None = 'slaney',  # noqa: ARG002
 		mlp_expansion_factor: int = 4,
 		multi_stft_hop_size: int = 147,
 		multi_stft_normalized: bool = False,
@@ -285,13 +287,18 @@ class BSRoformer(Module):
 		mask_filter_bank : Tensor | None = None
 			Custom band-membership `Tensor` with shape `(band, freq)`. Entry `(bandIndex,
 			frequencyIndex)` is truthy when that frequency bin belongs to that band. When
-			`mask_filter_bank` is provided, `__init__` skips automatic BS-mode or mel-mode band
-			construction. For ad-hoc custom generation,
-			`hunterFormsBS.make_static_mask_filter_bank.librosa_filters_mel` and
-			`hunterFormsBS.make_static_mask_filter_bank.filter_bank_non_overlapping` print paste-ready
-			static definitions [10].
+			`mask_filter_bank` is provided, `__init__` skips automatic non-overlapping band
+			construction from `freqs_per_bands`.
 		match_input_audio_length : bool = True
 			When `True`, inverse STFT reconstruction is forced back to the original waveform length.
+		melscale_fbanks_mel_scale : str = 'slaney'
+			Compatibility field retained for constructor alignment with `BandSplitRotator` and
+			`MelBandRoformer`. `BSRoformer` does not call
+			`torchaudio.functional.melscale_fbanks` [10], so `melscale_fbanks_mel_scale` is ignored.
+		melscale_fbanks_norm : str | None = 'slaney'
+			Compatibility field retained for constructor alignment with `BandSplitRotator` and
+			`MelBandRoformer`. `BSRoformer` does not call
+			`torchaudio.functional.melscale_fbanks` [10], so `melscale_fbanks_norm` is ignored.
 		mlp_expansion_factor : int = 4
 			Hidden-width expansion factor inside each mask-estimator MLP.
 		multi_stft_hop_size : int = 147
@@ -311,11 +318,11 @@ class BSRoformer(Module):
 			defaults [8][9]. The effective default is `False` in non-overlapping band-split mode and
 			`True` in mel-band mode. New configuration files should set `norm_output` explicitly.
 		num_bands : int | None = None
-			Number of bands for automatic front-end construction. When `mask_filter_bank` is omitted,
-			`sample_rate` together with `num_bands` selects mel-band mode. When `mask_filter_bank` is
-			provided and `num_bands` is `None`, `__init__` infers `num_bands` from
-			`mask_filter_bank.shape[0]`. When non-overlapping band-split mode is active, `__init__`
-			does not silently correct mismatches between `num_bands` and `freqs_per_bands`.
+			Number of non-overlapping bands for automatic front-end construction. When
+			`mask_filter_bank` is `None`, `num_bands` defaults to `len(freqs_per_bands)`. When
+			`mask_filter_bank` is provided, keep `num_bands` aligned with `mask_filter_bank.shape[0]`
+			because later tensor-shape construction still depends on `num_bands`. `BSRoformer` does
+			not use `sample_rate` together with `num_bands` to select mel-band mode.
 		num_stems : int = 1
 			Number of configured output sources.
 		sage_attention : bool = False
@@ -323,9 +330,9 @@ class BSRoformer(Module):
 			blocks. `hunterFormsBS` does not install `SageAttention`, so install the package manually
 			before setting `sage_attention=True`.
 		sample_rate : float | None = None
-			Sample-rate value used only when automatic mel-band construction is active. When
-			`mask_filter_bank` is `None`, `sample_rate` together with `num_bands` selects mel-band
-			mode.
+			Compatibility field retained for constructor alignment with `BandSplitRotator` and
+			`MelBandRoformer`. `BSRoformer` does not use `sample_rate` because automatic band
+			construction always derives the band layout from `freqs_per_bands`.
 		scale : float | None = None
 			Optional attention-score scale override forwarded to downstream attention blocks. `None`
 			keeps the standard per-head scale.
@@ -396,7 +403,8 @@ class BSRoformer(Module):
 
 		[9] `hunterFormsBS.mel_band_roformer.MelBandRoformer`
 
-		[10] `hunterFormsBS.make_static_mask_filter_bank`
+		[10] torchaudio.functional.melscale_fbanks - torchaudio
+			https://docs.pytorch.org/audio/stable/generated/torchaudio.functional.melscale_fbanks.html
 
 		[11] torch.utils.checkpoint.checkpoint
 			https://docs.pytorch.org/docs/stable/checkpoint.html

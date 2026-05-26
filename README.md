@@ -1,11 +1,5 @@
 # hunterFormsBS
 
-TODO
-
-- Make a GitHub release before deleting bs_roformer.py and mel_band_roformer.py.
-- Delete bs_roformer.py and mel_band_roformer.py.
-- Add all of the new MaskEstimator parameters to BandSplitRotator.
-
 A flexible frequency-band splitter for music source separation, organized around a single separator family that can express BS-style, mel-style, and custom layouts.
 
 Instead of treating `BSRoformer` and `MelBandRoformer` as separate architectures, this package treats them as different band-layout configurations of one core design centered on `BandSplitRotator`.
@@ -99,22 +93,22 @@ before enabling it because `hunterFormsBS` does not install that package.
 `BandSplitRotator` can choose RoPE or PoPE with `use_pope`, so the same model family can switch
 positional encoders without changing entry points.
 
-## Custom `mask_filter_bank` helpers
+## Automatic and custom `mask_filter_bank` construction
 
-Most users never need this section. The package already bundles the common lucidrains-style
-mel-band split as `hunterFormsBS.bandSplit.mask_filter_bank_mel_band_default`, and the separator
-constructors use that value automatically for `sample_rate=44100`, `stft_n_fft=2048`, and
-`num_bands=60`.
+Most users never need this section. When `mask_filter_bank` is `None`, `BandSplitRotator` and
+`MelBandRoformer` build mel-band layouts at runtime with `torchaudio.functional.melscale_fbanks`.
+The constructor parameters `melscale_fbanks_mel_scale` and `melscale_fbanks_norm` are forwarded to
+`torchaudio`, so you can choose the mel-scale formula and normalization rule used for automatic
+mel-band construction.
 
-If a checkpoint uses a different band layout, pass `mask_filter_bank` explicitly. For ad-hoc
-generation, import a function from `hunterFormsBS.make_static_mask_filter_bank` in Python and call
-the function from a REPL, notebook, or one-off script. There is intentionally no CLI for this
-module. `librosa` is only needed if you call `librosa_filters_mel`.
+For the package default mel-band layout, keep `sample_rate=44100`, `stft_n_fft=2048`,
+`num_bands=60`, `melscale_fbanks_mel_scale='slaney'`, and `melscale_fbanks_norm='slaney'`.
 
-- `filter_bank_non_overlapping` prints a static non-overlapping band split from
-  `freqs_per_bands`.
-- `librosa_filters_mel` prints a static mel-band split using `librosa.filters.mel`.
-- `print_static_mask` prints the compact `torch.tensor(...)` assignment used by the other helpers.
+For the non-overlapping BS-style layout, the constructors derive the Boolean band-membership map
+from `freqs_per_bands`.
+
+If a checkpoint uses a different band layout, pass `mask_filter_bank` explicitly as a Boolean
+`torch.Tensor` with shape `(band, freq)`.
 
 ## Package map
 
@@ -132,10 +126,6 @@ module. `librosa` is only needed if you call `librosa_filters_mel`.
 - `hunterFormsBS.mel_band_roformer`
   - Main symbols: `MelBandRoformer`
   - Purpose: familiar mel-band interface with automatic mel-band construction.
-- `hunterFormsBS.make_static_mask_filter_bank`
-  - Main symbols: `filter_bank_non_overlapping`, `librosa_filters_mel`, `print_static_mask`
-  - Purpose: ad-hoc helper module that prints paste-ready static `mask_filter_bank` definitions for
-    custom layouts.
 - `hunterFormsBS.bandSplit`
   - Main symbols: `BandSplit`, `MaskEstimator`, `MLP`, `lossComputation`,
     `DEFAULT_FREQS_PER_BANDS`
@@ -167,8 +157,8 @@ need:
 The compatibility classes are intentionally available from their own modules so that imports can stay
 explicit during comparisons with upstream repos.
 
-Ad-hoc helpers such as `hunterFormsBS.make_static_mask_filter_bank` stay as explicit submodule
-imports so the main namespace remains small and optional dependencies stay optional.
+Supporting modules stay under explicit submodule imports so the main namespace remains small and
+comparisons with upstream repos stay easy to read.
 
 ## Reference materials
 

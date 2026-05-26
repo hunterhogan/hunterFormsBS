@@ -4,4 +4,4 @@
 - `linear_transformer_depth` can still set the downstream `linear_attn` compatibility flag, but the current transformer stack no longer implements `LinearAttention`.
 - `sage_attention` is supported as an optional backend, but the `SageAttention` package is not installed by this repo and should be documented as a manual dependency.
 - The former `attend_experimental.py`, `bs_roformer_experimental.py`, and `mel_band_roformer_experimental.py` modules were removed after their useful options were integrated into the stable modules.
-- Mention `hunterFormsBS.make_static_mask_filter_bank` when documenting static mask/filter-bank generation or pasted tensor constants.
+- When documenting automatic mel-band construction, mention `torchaudio.functional.melscale_fbanks` together with `melscale_fbanks_mel_scale` and `melscale_fbanks_norm`; for custom layouts, tell users to pass `mask_filter_bank` explicitly.

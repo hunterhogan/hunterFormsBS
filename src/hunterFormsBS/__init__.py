@@ -1,9 +1,9 @@
 """Access typed band-split source-separation models and supporting modules.
 
 You can use this package to assemble typed source-separation models for music and other audio
-mixtures. You can import the primary separator model, attention building blocks, band-partitioning
-layers, mask estimation utilities, loss computation utilities, and typed configuration records from
-the top-level package namespace.
+mixtures. You can import the primary separator model from the top-level package namespace and reach
+the supporting attention, band-partitioning, compatibility-wrapper, and typed-configuration modules
+through `hunterFormsBS.*` submodule imports.
 
 Modules
 -------
@@ -17,8 +17,6 @@ bs_roformer
 	Compatibility implementation that preserves an upstream band-split separator layout.
 mel_band_roformer
 	Compatibility implementation that preserves an upstream mel-band separator layout.
-make_static_mask_filter_bank
-	Ad-hoc helpers that print static `mask_filter_bank` source for custom band layouts.
 theTypes
 	Typed configuration records for attention, STFT, transformer, and loss setup.
 """
