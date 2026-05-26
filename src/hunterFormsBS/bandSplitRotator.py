@@ -41,7 +41,7 @@ from einops import pack, rearrange, reduce, repeat, unpack  # pyright: ignore[re
 from functools import partial
 from hunterFormsBS.attend import Transformer
 from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, MaskEstimator
-from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersSTFT, ParametersTransformer
+from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersMaskEstimator, ParametersSTFT, ParametersTransformer
 from hunterMakesPy import raiseIfNone
 from more_itertools import loops
 from operator import mul
@@ -213,7 +213,7 @@ class BandSplitRotator(Module):
 		freqs_per_bands: tuple[int, ...] = DEFAULT_FREQS_PER_BANDS,
 		heads: int = 8,
 		linear_transformer_depth: int = 0,
-		mask_estimator_depth: int | None = None,
+		mask_estimator_depth: int = 1,
 		mask_filter_bank: Tensor | None = None,
 		match_input_audio_length: bool = True,
 		melscale_fbanks_mel_scale: str = 'slaney',
@@ -230,6 +230,34 @@ class BandSplitRotator(Module):
 		sage_attention: bool = False,
 		sample_rate: float | None = None,
 		scale: float | None = None,
+		segm_out_bins: int | None = None,
+		segm_out_channels: int = 4,
+		segm_base_channels: int = 64,
+		segm_base_depth: int = 2,
+		segm_num_hyperedges: int = 32,
+		segm_num_heads: int = 8,
+		segm_backbone_channels: tuple[int, int, int, int, int] | None = None,
+		segm_hyperace_k: int = 2,
+		segm_hyperace_l: int = 1,
+		segm_hyperace_c_h: float = 0.5,
+		segm_hyperace_c_l: float = 0.25,
+		segm_hyperace_c3ah_expansion: float = 1.0,
+		segm_hyperace_low_order_depth: int = 1,
+		segm_hyperace_low_order_kernel: int = 3,
+		segm_hyperace_low_order_expansion: float = 1.0,
+		segm_hyperace_out_channels: int | None = None,
+		segm_decoder_channels: list[int] | tuple[int, int, int, int] | None = None,
+		segm_decoder_block_depth: int = 1,
+		segm_decoder_block_kernel: int = 3,
+		segm_decoder_block_expansion: float = 0.5,
+		segm_upsample_scales: tuple[int, int, int, int] = (2, 2, 2, 2),
+		segm_upsample_tfc_tdf_depth: int = 2,
+		segm_upsample_tfc_tdf_bn: int = 4,
+		segm_activation: type[nn.Module] = nn.SiLU,
+		segm_norm_eps: float = 1e-8,
+		segm_norm_affine: bool = True,
+		segm_conv_bias: bool = False,
+		segm_linear_bias: bool = False,
 		skip_connection: bool = False,
 		stereo: bool = False,
 		stft_hop_length: int = 512,
@@ -296,7 +324,7 @@ class BandSplitRotator(Module):
 			Vestigial parameter retained after removal of the dedicated `LinearAttention` block.
 			Nonzero values still set the downstream compatibility flag, but current transformer code
 			does not insert a separate linear-attention sublayer.
-		mask_estimator_depth : int | None = None
+		mask_estimator_depth : int = 1
 			Depth of the per-band MLP inside each mask-estimator head. This unified implementation
 			defaults to `1`. Ports from older `BSRoformer` setups that assumed `2` should set
 			`mask_estimator_depth=1` explicitly.
@@ -455,7 +483,6 @@ class BandSplitRotator(Module):
 				mask_filter_bank[0, 0] = True
 				mask_filter_bank[-1, -1] = True
 
-				mask_estimator_depth = mask_estimator_depth or 1
 				if final_norm is None:
 					final_norm = False
 				if norm_output is None:
@@ -467,7 +494,6 @@ class BandSplitRotator(Module):
 				num_bands = num_bands or len(freqs_per_bands)
 				filter_bank: Tensor = repeat_interleave(arange(num_bands), tensor(freqs_per_bands))
 				mask_filter_bank = filter_bank[None, :] == arange(num_bands)[:, None]
-				mask_estimator_depth = mask_estimator_depth or 1
 				if final_norm is None:
 					final_norm = True
 				if norm_output is None:
@@ -525,21 +551,24 @@ class BandSplitRotator(Module):
 
 		# band split and mask estimator
 
+		parametersMaskEstimator = ParametersMaskEstimator(activation=activation, dim=dim, depth=mask_estimator_depth, mlp_expansion_factor=mlp_expansion_factor
+			, segm_out_bins=segm_out_bins, segm_out_channels=segm_out_channels, segm_base_channels=segm_base_channels, segm_base_depth=segm_base_depth
+			, segm_num_hyperedges=segm_num_hyperedges, segm_num_heads=segm_num_heads, segm_backbone_channels=segm_backbone_channels, segm_hyperace_k=segm_hyperace_k
+			, segm_hyperace_l=segm_hyperace_l, segm_hyperace_c_h=segm_hyperace_c_h, segm_hyperace_c_l=segm_hyperace_c_l, segm_hyperace_c3ah_expansion=segm_hyperace_c3ah_expansion
+			, segm_hyperace_low_order_depth=segm_hyperace_low_order_depth, segm_hyperace_low_order_kernel=segm_hyperace_low_order_kernel
+			, segm_hyperace_low_order_expansion=segm_hyperace_low_order_expansion, segm_hyperace_out_channels=segm_hyperace_out_channels
+			, segm_decoder_channels=segm_decoder_channels, segm_decoder_block_depth=segm_decoder_block_depth, segm_decoder_block_kernel=segm_decoder_block_kernel
+			, segm_decoder_block_expansion=segm_decoder_block_expansion, segm_upsample_scales=segm_upsample_scales, segm_upsample_tfc_tdf_depth=segm_upsample_tfc_tdf_depth
+			, segm_upsample_tfc_tdf_bn=segm_upsample_tfc_tdf_bn, segm_activation=segm_activation, segm_norm_eps=segm_norm_eps
+			, segm_norm_affine=segm_norm_affine, segm_conv_bias=segm_conv_bias, segm_linear_bias=segm_linear_bias, use_hyperACE=use_hyperACE)
 		self.register_buffer('mask_filter_bank', mask_filter_bank, persistent=False)
 		num_freqs_per_band: Tensor = reduce(mask_filter_bank, 'b f -> b', 'sum')
 		self.register_buffer('num_freqs_per_band', num_freqs_per_band, persistent=False)
 
 		freqs_per_bands_with_complex: tuple[int, ...] = tuple(map(partial(mul, 2 * self.audio_channels), num_freqs_per_band.tolist()))  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]  # ty:ignore[invalid-assignment]
 		self.band_split: BandSplit = BandSplit(dim=dim, dim_inputs=freqs_per_bands_with_complex)
-		self.mask_estimators: ModuleList = nn.ModuleList([
-			MaskEstimator(dim
-				, freqs_per_bands_with_complex
-				, depth=raiseIfNone(mask_estimator_depth, f'I received {mask_estimator_depth = }, but I need a type `int` > 0. If you are migrating a `BSRoformer` checkpoint and the old default value was `2`, then you probably want `mask_estimator_depth = 1` in this package.')
-				, mlp_expansion_factor=mlp_expansion_factor
-				, activation=activation
-				, use_hyperACE=use_hyperACE
-			) for _stem_index in loops(self.num_stems)
-		])
+		self.mask_estimators: ModuleList = nn.ModuleList([MaskEstimator(dim_inputs=freqs_per_bands_with_complex, **parametersMaskEstimator)
+							for _stem_index in loops(self.num_stems)])
 
 		freqs: int = stft_n_fft // 2 + 1
 		repeated_freq_indices: Tensor = repeat(torch.arange(freqs), 'f -> b f', b=num_bands)

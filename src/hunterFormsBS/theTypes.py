@@ -35,6 +35,7 @@ References
 """
 from __future__ import annotations
 
+from torch import nn
 from typing import NamedTuple, TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
@@ -137,6 +138,41 @@ class ParametersComputeLoss(TypedDict):
 	n_fft: int
 	normalized: bool
 	window_fn: Callable[..., Tensor]
+
+class ParametersMaskEstimator(TypedDict):
+	activation: type[nn.Module]
+	dim: int
+	depth: int
+	mlp_expansion_factor: int
+	segm_out_bins: int | None
+	segm_out_channels: int
+	segm_base_channels: int
+	segm_base_depth: int
+	segm_num_hyperedges: int
+	segm_num_heads: int
+	segm_backbone_channels: tuple[int, int, int, int, int] | None
+	segm_hyperace_k: int
+	segm_hyperace_l: int
+	segm_hyperace_c_h: float
+	segm_hyperace_c_l: float
+	segm_hyperace_c3ah_expansion: float
+	segm_hyperace_low_order_depth: int
+	segm_hyperace_low_order_kernel: int
+	segm_hyperace_low_order_expansion: float
+	segm_hyperace_out_channels: int | None
+	segm_decoder_channels: list[int] | tuple[int, int, int, int] | None
+	segm_decoder_block_depth: int
+	segm_decoder_block_kernel: int
+	segm_decoder_block_expansion: float
+	segm_upsample_scales: tuple[int, int, int, int]
+	segm_upsample_tfc_tdf_depth: int
+	segm_upsample_tfc_tdf_bn: int
+	segm_activation: type[nn.Module]
+	segm_norm_eps: float
+	segm_norm_affine: bool
+	segm_conv_bias: bool
+	segm_linear_bias: bool
+	use_hyperACE: bool
 
 class ParametersSTFT(TypedDict):
 	"""Collect one forward-and-inverse STFT keyword record.
