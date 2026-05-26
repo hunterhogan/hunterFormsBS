@@ -222,6 +222,7 @@ dependencies = [
     { name = "rotary-embedding-torch" },
     { name = "torch" },
     { name = "torch-einops-kit" },
+    { name = "torchaudio" },
     { name = "z0z-tools" },
 ]
 
@@ -245,6 +246,7 @@ requires-dist = [
     { name = "rotary-embedding-torch", git = "https://github.com/hunterhogan/rotary-embedding-torch.git" },
     { name = "torch", specifier = ">=2.0.0" },
     { name = "torch-einops-kit" },
+    { name = "torchaudio", specifier = ">=2.10.0" },
     { name = "z0z-tools" },
 ]
 

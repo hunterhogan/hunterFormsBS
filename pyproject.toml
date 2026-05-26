@@ -28,7 +28,6 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "Z0Z_tools",
   "einops>=0.8.2",
   "hunterMakesPy",
   "more-itertools",
@@ -36,8 +35,10 @@ dependencies = [
   "packaging",
   "pope-pytorch",
   "rotary-embedding-torch",
-  "torch>=2.0.0",
   "torch-einops-kit",
+  "torch>=2.0.0",
+  "torchaudio>=2.0.0",
+  "Z0Z_tools",
 ]
 
 [project.urls]
