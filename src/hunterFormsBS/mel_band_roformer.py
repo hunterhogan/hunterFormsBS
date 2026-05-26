@@ -51,6 +51,7 @@ from torch.utils.checkpoint import checkpoint  # pyright: ignore[reportUnknownVa
 from torch_einops_kit import exists
 from torch_einops_kit.einops import pack_one, unpack_one
 from torch_einops_kit.scaleValues import RMSNorm
+from torchaudio.functional import melscale_fbanks  # pyright: ignore[reportMissingTypeStubs]
 from typing import cast, TYPE_CHECKING
 from Z0Z_tools import halfsineTensor
 import torch
@@ -400,7 +401,7 @@ class MelBandRoformer(Module):
 
 		[11] torch.utils.checkpoint.checkpoint
 			https://docs.pytorch.org/docs/stable/checkpoint.html
-		"""  # noqa: DOC501
+		"""
 		super().__init__()
 
 		# class attributes, including "forward" compatibility
@@ -412,20 +413,37 @@ class MelBandRoformer(Module):
 		self.use_torch_checkpoint: bool = use_torch_checkpoint
 
 		if mask_filter_bank is None:
+
 			num_bands = num_bands or 60
 			sample_rate = sample_rate or 44100
-			if (stft_n_fft == 2048) and (num_bands == 60) and (sample_rate == 44100):
-				mask_filter_bank = mask_filter_bank_mel_band_default
-			else:
-				message: str = (
-					f'I received `{stft_n_fft = }`, `{num_bands = }`, and `{sample_rate = }`, but '
-					'I only provide one built-in mel-band `mask_filter_bank` when `mask_filter_bank` '
-					'is `None`: `stft_n_fft == 2048`, `num_bands == 60`, and `sample_rate == 44100`. '
-					'If your checkpoint uses a different mel-band split, pass `mask_filter_bank` '
-					'explicitly. You can generate a static `mask_filter_bank` value with '
-					'`hunterFormsBS.make_static_mask_filter_bank.librosa_filters_mel`.'
-				)
-				raise ValueError(message)
+
+			mask_filter_bank = melscale_fbanks(
+				n_freqs=stft_n_fft // 2 + 1,
+				f_min=0.0,
+				f_max=sample_rate / 2.0,
+				n_mels=num_bands,
+				sample_rate=int(sample_rate),
+				norm='slaney',
+				mel_scale='slaney',
+			)
+			mask_filter_bank[0, 0] = 1.0
+			mask_filter_bank[-1, -1] = 1.0
+			mask_filter_bank = 0 < mask_filter_bank
+			mask_filter_bank = mask_filter_bank.T
+
+			# if (stft_n_fft == 2048) and (num_bands == 60) and (sample_rate == 44100):
+			# 	mask_filter_bank = mask_filter_bank_mel_band_default  # noqa: ERA001
+			# else:  # noqa: ERA001
+			# 	message: str = (
+			# 		f'I received `{stft_n_fft = }`, `{num_bands = }`, and `{sample_rate = }`, but '  # noqa: ERA001
+			# 		'I only provide one built-in mel-band `mask_filter_bank` when `mask_filter_bank` '
+			# 		'is `None`: `stft_n_fft == 2048`, `num_bands == 60`, and `sample_rate == 44100`. '  # noqa: ERA001
+			# 		'If your checkpoint uses a different mel-band split, pass `mask_filter_bank` '
+			# 		'explicitly. You can generate a static `mask_filter_bank` value with '
+			# 		'`hunterFormsBS.make_static_mask_filter_bank.librosa_filters_mel`.'
+			# 	)
+			# 	raise ValueError(message)  # noqa: ERA001
+
 			mask_estimator_depth = mask_estimator_depth or 1
 			if final_norm is None:
 				final_norm = False
