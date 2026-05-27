@@ -50,6 +50,7 @@ Issues = "https://github.com/hunterhogan/hunterFormsBS/issues"
 Repository = "https://github.com/hunterhogan/hunterFormsBS.git"
 
 [dependency-groups]
+dev = ["pope-pytorch", "rotary-embedding-torch"]
 pytorch = ["torch==2.10.0", "torchaudio==2.10.0"]
 testing = ["pytest"]
 
@@ -71,7 +72,7 @@ name = "indexPytorch"
 url = "https://download.pytorch.org/whl/cu128"
 
 [tool.uv.sources]
-pope-pytorch = { git = "https://github.com/hunterhogan/PoPE-pytorch.git" }
-rotary-embedding-torch = { git = "https://github.com/hunterhogan/rotary-embedding-torch.git" }
+pope-pytorch = { git = "https://github.com/hunterhogan/PoPE-pytorch.git", group = "dev" }
+rotary-embedding-torch = { git = "https://github.com/hunterhogan/rotary-embedding-torch.git", group = "dev" }
 torch = { index = "indexPytorch", group = "pytorch" }
 torchaudio = { index = "indexPytorch", group = "pytorch" }

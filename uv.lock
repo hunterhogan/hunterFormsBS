@@ -210,7 +210,7 @@ wheels = [
 
 [[package]]
 name = "hunterformsbs"
-version = "0.1.7"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "einops" },
@@ -227,6 +227,10 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+dev = [
+    { name = "pope-pytorch" },
+    { name = "rotary-embedding-torch" },
+]
 pytorch = [
     { name = "torch" },
     { name = "torchaudio" },
@@ -242,15 +246,19 @@ requires-dist = [
     { name = "more-itertools" },
     { name = "opt-einsum", specifier = ">=3.4.0" },
     { name = "packaging" },
-    { name = "pope-pytorch", git = "https://github.com/hunterhogan/PoPE-pytorch.git" },
-    { name = "rotary-embedding-torch", git = "https://github.com/hunterhogan/rotary-embedding-torch.git" },
+    { name = "pope-pytorch" },
+    { name = "rotary-embedding-torch" },
     { name = "torch", specifier = ">=2.0.0" },
     { name = "torch-einops-kit" },
-    { name = "torchaudio", specifier = ">=2.10.0" },
+    { name = "torchaudio", specifier = ">=2.0.0" },
     { name = "z0z-tools" },
 ]
 
 [package.metadata.requires-dev]
+dev = [
+    { name = "pope-pytorch", git = "https://github.com/hunterhogan/PoPE-pytorch.git" },
+    { name = "rotary-embedding-torch", git = "https://github.com/hunterhogan/rotary-embedding-torch.git" },
+]
 pytorch = [
     { name = "torch", specifier = "==2.10.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "hunterformsbs", group = "pytorch" } },
     { name = "torchaudio", specifier = "==2.10.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "hunterformsbs", group = "pytorch" } },
