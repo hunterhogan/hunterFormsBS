@@ -8,7 +8,7 @@ modules through `hunterFormsBS.*` submodule imports.
 Modules
 -------
 attend
-	Attention layers and Transformer blocks for separator models.
+	Attention layers for separator models.
 bands
 	Band projection layer and the BS-style default frequency-bin partition.
 bandSplitRotator
@@ -21,6 +21,8 @@ mask
 	Mask estimation heads and band-local affine blocks.
 theTypes
 	Typed configuration records for attention, mask estimation, STFT, transformer, and loss setup.
+transform
+	Position-wise feedforward block and stacked attention-and-feedforward transformer.
 """
 
 from __future__ import annotations

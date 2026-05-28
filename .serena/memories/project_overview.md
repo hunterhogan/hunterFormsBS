@@ -5,7 +5,8 @@
 - Public package export in `src/hunterFormsBS/__init__.py`: `BandSplitRotator` only.
 - Current converged architecture:
   - `bandSplitRotator.py`: unified `BandSplitRotator` separator for non-overlapping BS-style bands, automatic mel-band layouts, and custom band layouts. Its constructor exposes downstream attention, transformer, mask-estimator, optional HyperACE segmentation-branch, STFT, and loss options with stable parameter identifiers.
-  - `attend.py`: shared `Attend`, `Attention`, `FeedForward`, and `Transformer` building blocks. `LinearAttention` has been removed; `linear_attn` / `linear_transformer_depth` are compatibility flags only.
+  - `attend.py`: shared `Attend` and `Attention` building blocks. `LinearAttention` has been removed; `linear_attn` / `linear_transformer_depth` are compatibility flags only.
+  - `transform.py`: `FeedForward` and `Transformer`; position-wise feedforward block and stacked attention-and-feedforward transformer. These were moved from `attend.py`.
   - `bands.py`: `BandSplit` and `DEFAULT_FREQS_PER_BANDS`; the band projection front end and BS-style default frequency-bin partition.
   - `loss.py`: `lossComputation`; multi-resolution STFT training-loss helper.
   - `mask.py`: `MaskEstimator` and `MLP`; mask-estimation heads and band-local affine blocks.

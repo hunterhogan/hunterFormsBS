@@ -37,7 +37,7 @@ The key design idea is that the difference between the BS-style front end and th
 is treated as a band-layout problem, not as a reason to maintain two unrelated model families.
 
 - `hunterFormsBS.bandSplitRotator.BandSplitRotator` is the primary unified entry point and the only public separator class exported by this package.
-- `hunterFormsBS.bands.BandSplit`, `hunterFormsBS.mask.MaskEstimator`, `hunterFormsBS.mask.MLP`, `hunterFormsBS.loss.lossComputation`, and `hunterFormsBS.attend.Transformer` hold the reusable typed building blocks shared across all band-layout modes.
+- `hunterFormsBS.bands.BandSplit`, `hunterFormsBS.mask.MaskEstimator`, `hunterFormsBS.mask.MLP`, `hunterFormsBS.loss.lossComputation`, `hunterFormsBS.attend.Attention`, and `hunterFormsBS.transform.Transformer` hold the reusable typed building blocks shared across all band-layout modes.
 - `hunterFormsBS.hyperACE.SegmModel` supplies the optional segmentation-style mask-estimation branch used when `use_hyperACE=True`.
 - Attention and transformer options such as `attn_dropout`, `ff_dropout`, `flash_attn`, `sage_attention`, and `scale` keep the same identifiers as they move from model constructors into downstream blocks.
 - All user-configurable separator settings live on `BandSplitRotator`, including optional HyperACE branch settings under the `segm_*` prefix.
@@ -134,8 +134,11 @@ prefix.
   - Main symbols: `MaskEstimator`, `MLP`
   - Purpose: mask-estimation heads and band-local affine blocks.
 - `hunterFormsBS.attend`
-  - Main symbols: `Attend`, `Attention`, `FeedForward`, `Transformer`
-  - Purpose: shared attention, feedforward, and transformer building blocks with RoPE / PoPE, PyTorch SDPA, and optional SageAttention support.
+  - Main symbols: `Attend`, `Attention`
+  - Purpose: shared attention core with RoPE / PoPE, PyTorch SDPA, and optional SageAttention support.
+- `hunterFormsBS.transform`
+  - Main symbols: `FeedForward`, `Transformer`
+  - Purpose: position-wise feedforward block and stacked attention-and-feedforward transformer.
 - `hunterFormsBS.hyperACE`
   - Main symbols: `SegmModel`, `HyperACE`, `Backbone`, `Decoder`, `ProgressiveUpsampleHead`
   - Purpose: optional segmentation-style mask-estimation branch and its reusable building blocks.
