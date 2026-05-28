@@ -136,10 +136,10 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 
 	for window_size in multi_stft['window_sizes']:
 		res_stft_kwargs = ParametersSTFT(
-			hop_length=multi_stft['hop_length'],
-			n_fft=max(window_size, multi_stft['n_fft']),
-			normalized=multi_stft['normalized'],
-			win_length=window_size,
+			hop_length=multi_stft['hop_length']
+			, n_fft=max(window_size, multi_stft['n_fft'])
+			, normalized=multi_stft['normalized']
+			, win_length=window_size
 		)
 
 		recon_Y: Tensor = torch.stft(input=rearrange(recon_audio, 'b n s t -> (b n s) t'), return_complex=True, window=multi_stft['window_fn'](window_size, device=device), **res_stft_kwargs)

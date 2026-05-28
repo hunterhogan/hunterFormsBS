@@ -109,6 +109,7 @@ class BandSplit(Module):
 			width configured in `__init__`.
 		"""
 		tuple_inputs: tuple[Tensor, ...] = torch.split(x, self.dim_inputs, dim=-1)
+		# TODO why is dim hardcoded?
 
 		outs: list[Tensor] = []
 		for split_input, to_feature in zip(tuple_inputs, self.to_features, strict=True):
