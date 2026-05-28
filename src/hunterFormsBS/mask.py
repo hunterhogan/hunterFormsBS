@@ -37,94 +37,6 @@ import torch
 if TYPE_CHECKING:
 	from collections.abc import Sequence
 
-def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1, activation: type[nn.Module] = nn.Tanh) -> nn.Sequential:
-	"""Build one feedforward projection from `dim_in` to `dim_out`.
-
-	You can use `MLP` to create one `nn.Sequential` made of linear layers with one intermediate
-	activation after every non-final linear layer. `MLP` does not apply normalization or output gating
-	by itself. `MaskEstimator` [1] uses `MLP` as the band-local affine block before the final gate in
-	the BS-RoFormer [2] and Mel-RoFormer [3] mask heads.
-
-	Parameters
-	----------
-	dim_in : int
-		Input feature width for the first linear layer.
-	dim_out : int
-		Output feature width for the last linear layer.
-	dim_hidden : int | None = None
-		Hidden feature width for repeated intermediate linear layers. When `dim_hidden` is `None`,
-		`MLP` uses `dim_in`.
-	depth : int = 1
-		Number of repeated `dim_hidden` stages between the input layer and the output layer. `depth =
-		0` yields a single linear layer. `depth = 1` yields one hidden layer.
-	activation : type[nn.Module] = nn.Tanh
-		Activation class instantiated after each non-final linear layer.
-
-	Returns
-	-------
-	network : nn.Sequential
-		Sequential stack of alternating linear layers and instantiated `activation` modules. The last
-		module is always linear.
-
-	Mathematics
-	-----------
-	linear stack : equation
-	```
-		Let x denote the input vector,  L ≜ `depth`,
-			d₀ ≜ `dim_in`,  d_out ≜ `dim_out`,  d_h denote the effective hidden width
-
-		d₁ = ⋯ = d_L = d_h
-		h₀ = x
-		hᵢ₊₁ = φ(Wᵢ hᵢ + bᵢ)    ∀ i ∈ {0, …, L − 1}
-		y = W_L h_L + b_L
-
-		where  d_h ≜ hidden width determined from `dim_hidden`,  φ ≜ `activation`
-	```
-	default mask-head affine block : equation
-	```
-		Let  x denote one band-local input vector,  d ≜ `dim_in`
-
-		L = 1
-		d_h = 4d
-		φ = tanh
-		h = φ(W₁ x + b₁)
-		g = W₂ h + b₂
-
-		where  g ≜ affine output returned by `MLP` before the later gate in `MaskEstimator`
-	```
-
-	Layer Construction
-	------------------
-	activation instantiation : behavior
-		`MLP` instantiates a fresh `activation()` module after each non-final linear layer. `MLP` does
-		not append an activation after the last linear layer.
-
-	References
-	----------
-	[1] `MaskEstimator`
-
-	[2] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation
-		with Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
-	[3] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
-		Transcription https://arxiv.org/abs/2409.04702
-	"""
-	dim_hidden = default(dim_hidden, dim_in)
-
-	net: list[nn.Module] = []
-	dims: tuple[int, ...] = (dim_in, *((dim_hidden,) * depth), dim_out)
-
-	for ind, (layer_dim_in, layer_dim_out) in enumerate(zip(dims[:-1], dims[1:], strict=True)):  # noqa: RUF007
-		is_last: bool = ind == (len(dims) - 2)
-
-		net.append(nn.Linear(layer_dim_in, layer_dim_out))
-
-		if is_last:
-			continue
-
-		net.append(activation())
-
-	return nn.Sequential(*net)
-
 class MaskEstimator(Module):
 	"""Estimate one concatenated subband mask from band tokens.
 
@@ -389,3 +301,91 @@ class MaskEstimator(Module):
 			out += y  # pyright: ignore[reportPossiblyUnboundVariable]
 
 		return out
+
+def MLP(dim_in: int, dim_out: int, dim_hidden: int | None = None, depth: int = 1, activation: type[nn.Module] = nn.Tanh) -> nn.Sequential:
+	"""Build one feedforward projection from `dim_in` to `dim_out`.
+
+	You can use `MLP` to create one `nn.Sequential` made of linear layers with one intermediate
+	activation after every non-final linear layer. `MLP` does not apply normalization or output gating
+	by itself. `MaskEstimator` [1] uses `MLP` as the band-local affine block before the final gate in
+	the BS-RoFormer [2] and Mel-RoFormer [3] mask heads.
+
+	Parameters
+	----------
+	dim_in : int
+		Input feature width for the first linear layer.
+	dim_out : int
+		Output feature width for the last linear layer.
+	dim_hidden : int | None = None
+		Hidden feature width for repeated intermediate linear layers. When `dim_hidden` is `None`,
+		`MLP` uses `dim_in`.
+	depth : int = 1
+		Number of repeated `dim_hidden` stages between the input layer and the output layer. `depth =
+		0` yields a single linear layer. `depth = 1` yields one hidden layer.
+	activation : type[nn.Module] = nn.Tanh
+		Activation class instantiated after each non-final linear layer.
+
+	Returns
+	-------
+	network : nn.Sequential
+		Sequential stack of alternating linear layers and instantiated `activation` modules. The last
+		module is always linear.
+
+	Mathematics
+	-----------
+	linear stack : equation
+	```
+		Let x denote the input vector,  L ≜ `depth`,
+			d₀ ≜ `dim_in`,  d_out ≜ `dim_out`,  d_h denote the effective hidden width
+
+		d₁ = ⋯ = d_L = d_h
+		h₀ = x
+		hᵢ₊₁ = φ(Wᵢ hᵢ + bᵢ)    ∀ i ∈ {0, …, L − 1}
+		y = W_L h_L + b_L
+
+		where  d_h ≜ hidden width determined from `dim_hidden`,  φ ≜ `activation`
+	```
+	default mask-head affine block : equation
+	```
+		Let  x denote one band-local input vector,  d ≜ `dim_in`
+
+		L = 1
+		d_h = 4d
+		φ = tanh
+		h = φ(W₁ x + b₁)
+		g = W₂ h + b₂
+
+		where  g ≜ affine output returned by `MLP` before the later gate in `MaskEstimator`
+	```
+
+	Layer Construction
+	------------------
+	activation instantiation : behavior
+		`MLP` instantiates a fresh `activation()` module after each non-final linear layer. `MLP` does
+		not append an activation after the last linear layer.
+
+	References
+	----------
+	[1] `MaskEstimator`
+
+	[2] Lu, W.-T., Wang, J.-C., Kong, Q., & Hung, Y.-N. (2023). Music Source Separation
+		with Band-Split RoPE Transformer. https://arxiv.org/abs/2309.02612
+	[3] Wang, J.-C., Lu, W.-T., and Chen, J. (2024) Mel-RoFormer for Vocal Separation and Vocal Melody
+		Transcription https://arxiv.org/abs/2409.04702
+	"""
+	dim_hidden = default(dim_hidden, dim_in)
+
+	net: list[nn.Module] = []
+	dims: tuple[int, ...] = (dim_in, *((dim_hidden,) * depth), dim_out)
+
+	for ind, (layer_dim_in, layer_dim_out) in enumerate(zip(dims[:-1], dims[1:], strict=True)):  # noqa: RUF007
+		is_last: bool = ind == (len(dims) - 2)
+
+		net.append(nn.Linear(layer_dim_in, layer_dim_out))
+
+		if is_last:
+			continue
+
+		net.append(activation())
+
+	return nn.Sequential(*net)
