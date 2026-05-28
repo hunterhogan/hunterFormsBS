@@ -9,12 +9,16 @@ Modules
 -------
 attend
 	Attention layers and Transformer blocks for separator models.
-bandSplit
-	Band partitioning layers, mask estimation, and loss computation utilities.
+bands
+	Band projection layer and the BS-style default frequency-bin partition.
 bandSplitRotator
 	Primary band-split separator model exposed by the package.
 hyperACE
 	Optional segmentation-style mask-estimation branch and supporting building blocks.
+loss
+	Multi-resolution STFT training-loss computation utilities.
+mask
+	Mask estimation heads and band-local affine blocks.
 theTypes
 	Typed configuration records for attention, mask estimation, STFT, transformer, and loss setup.
 """

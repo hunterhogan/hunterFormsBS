@@ -4,8 +4,9 @@ You can use this module to access the small record classes that group related ke
 pass those keyword arguments through several constructor layers without renaming fields. The records
 keep the attention stack, the mask-estimation heads, the optional segmentation branch, the STFT
 helpers, and the separator model aligned when one outer model configures several downstream classes.
-The records are consumed by `hunterFormsBS.attend` [1], `hunterFormsBS.bandSplit` [2],
-`hunterFormsBS.bandSplitRotator.BandSplitRotator` [3], and `hunterFormsBS.hyperACE` [4].
+The records are consumed by `hunterFormsBS.attend` [1], `hunterFormsBS.bands` [2],
+`hunterFormsBS.loss` [3], `hunterFormsBS.mask` [4],
+`hunterFormsBS.bandSplitRotator.BandSplitRotator` [5], and `hunterFormsBS.hyperACE` [6].
 
 Contents
 --------
@@ -27,11 +28,15 @@ References
 ----------
 [1] `hunterFormsBS.attend`
 
-[2] `hunterFormsBS.bandSplit`
+[2] `hunterFormsBS.bands`
 
-[3] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
+[3] `hunterFormsBS.loss`
 
-[4] `hunterFormsBS.hyperACE`
+[4] `hunterFormsBS.mask`
+
+[5] `hunterFormsBS.bandSplitRotator.BandSplitRotator`
+
+[6] `hunterFormsBS.hyperACE`
 """
 from __future__ import annotations
 

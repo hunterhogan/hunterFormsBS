@@ -6,9 +6,12 @@
 - Current converged architecture:
   - `bandSplitRotator.py`: unified `BandSplitRotator` separator for non-overlapping BS-style bands, automatic mel-band layouts, and custom band layouts. Its constructor exposes downstream attention, transformer, mask-estimator, optional HyperACE segmentation-branch, STFT, and loss options with stable parameter identifiers.
   - `attend.py`: shared `Attend`, `Attention`, `FeedForward`, and `Transformer` building blocks. `LinearAttention` has been removed; `linear_attn` / `linear_transformer_depth` are compatibility flags only.
-  - `bandSplit.py`: `BandSplit`, `MaskEstimator`, `lossComputation`, and `DEFAULT_FREQS_PER_BANDS`; mel-band layouts are built at runtime by `BandSplitRotator` with `torchaudio.functional.melscale_fbanks`.
+  - `bands.py`: `BandSplit` and `DEFAULT_FREQS_PER_BANDS`; the band projection front end and BS-style default frequency-bin partition.
+  - `loss.py`: `lossComputation`; multi-resolution STFT training-loss helper.
+  - `mask.py`: `MaskEstimator` and `MLP`; mask-estimation heads and band-local affine blocks.
   - `hyperACE.py`: optional segmentation-style mask-estimation branch and reusable building blocks used when `use_hyperACE=True`.
   - `theTypes.py`: typed config helpers including `ParametersAttention`, `ParametersComputeLoss`, `ParametersMaskEstimator`, `ParametersSTFT`, `ParametersTransformer`, and `FlashAttentionConfig`.
+  - NOTE: `bands.py` was previously named `bandSplit.py` and formerly also contained `MaskEstimator`, `MLP`, and `lossComputation` before they were split into `mask.py` and `loss.py`.
   - There is no separate static mask-filter-bank helper module anymore; custom layouts should pass `mask_filter_bank` explicitly, and automatic mel-band layouts use `torchaudio.functional.melscale_fbanks`.
 - Removed modules: `attend_experimental.py`, `bs_roformer_experimental.py`, `mel_band_roformer_experimental.py`, `bs_roformer.py`, and `mel_band_roformer.py`; do not treat those modules as live package modules.
 - Optional `sage_attention=True` requests the separately installed `thu-ml/SageAttention` backend; this repo does not install `SageAttention` automatically.

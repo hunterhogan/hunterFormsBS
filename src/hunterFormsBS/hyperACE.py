@@ -2,7 +2,7 @@
 """Assemble a HyperACE-guided spectrogram branch for band-wise mask estimation.
 
 You can use this module to build the optional spectrogram branch that augments
-`hunterFormsBS.bandSplit.MaskEstimator` [1] with a segmentation-style network. The module adapts the
+`hunterFormsBS.mask.MaskEstimator` [1] with a segmentation-style network. The module adapts the
 Hypergraph-based Adaptive Correlation Enhancement (HyperACE) and FullPAD ideas from YOLOv13 [2] to
 spectrogram features produced in the BS-RoFormer and Mel-RoFormer model family [3][4], following
 unwa's BS-Roformer-HyperACE implementation [7]. It also uses TFC-TDF residual refinement blocks from
@@ -52,7 +52,7 @@ Classes
 
 References
 ----------
-[1] `hunterFormsBS.bandSplit.MaskEstimator`
+[1] `hunterFormsBS.mask.MaskEstimator`
 
 [2] Lei, M., Li, S., Wu, Y., Hu, H., Zhou, Y., Zheng, X., Ding, G., Du, S., Wu, Z.,
 	and Gao, Y. (2025). YOLOv13: Real-Time Object Detection with Hypergraph-Enhanced Adaptive Visual
@@ -2262,7 +2262,7 @@ class SegmModel(nn.Module):
 
 	You can use `SegmModel` to encode one band-split feature tensor, aggregate the encoder stages with
 	`HyperACE`, decode the aggregated representation, restore the time resolution, and upsample the
-	frequency axis to the target STFT-bin count. `bandSplit.MaskEstimator` uses this branch when
+	frequency axis to the target STFT-bin count. `mask.MaskEstimator` uses this branch when
 	`use_hyperACE` is enabled [1]. This assembly follows unwa's BS-Roformer-HyperACE implementation [5].
 
 	Mathematics
@@ -2283,7 +2283,7 @@ class SegmModel(nn.Module):
 
 	References
 	----------
-	[1] `hunterFormsBS.bandSplit.MaskEstimator`
+	[1] `hunterFormsBS.mask.MaskEstimator`
 
 	[2] Lei, M., Li, S., Wu, Y., Hu, H., Zhou, Y., Zheng, X., Ding, G., Du, S., Wu, Z.,
 		and Gao, Y. (2025). YOLOv13: Real-Time Object Detection with Hypergraph-Enhanced Adaptive

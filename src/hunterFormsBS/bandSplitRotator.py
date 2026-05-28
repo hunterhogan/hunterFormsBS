@@ -31,7 +31,9 @@ from __future__ import annotations
 from einops import pack, rearrange, reduce, repeat, unpack  # pyright: ignore[reportUnknownVariableType]
 from functools import partial
 from hunterFormsBS.attend import Transformer
-from hunterFormsBS.bandSplit import BandSplit, DEFAULT_FREQS_PER_BANDS, lossComputation, MaskEstimator
+from hunterFormsBS.bands import BandSplit, DEFAULT_FREQS_PER_BANDS
+from hunterFormsBS.loss import lossComputation
+from hunterFormsBS.mask import MaskEstimator
 from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersMaskEstimator, ParametersSTFT, ParametersTransformer
 from hunterMakesPy import raiseIfNone
 from more_itertools import loops
