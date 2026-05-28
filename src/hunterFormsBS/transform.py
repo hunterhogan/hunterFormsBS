@@ -133,7 +133,6 @@ class FeedForward(Module):
 		"""
 		return self.net(x)
 
-
 class Transformer(Module):
 	"""Refine activations with repeated attention-and-feedforward blocks.
 
