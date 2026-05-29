@@ -26,3 +26,25 @@ tensorMaskEstimatorExpectedBeta: Tensor = tensor(dtype=torch.float32, data=[[[15
 tensorMaskEstimatorInputAlfa: Tensor = torch.stack((tensorFeedForwardAlfaExpanded, tensorFeedForwardBeta, tensorFeedForwardAlfaExpanded + 1000.0, tensorFeedForwardBeta + 1000.0), dim=2)
 tensorMaskEstimatorInputBeta: Tensor = torch.stack((tensorFeedForwardBeta + 2000.0, tensorFeedForwardAlfaExpanded + 2000.0, tensorFeedForwardBeta + 4000.0, tensorFeedForwardAlfaExpanded + 4000.0), dim=2)
 tensorWaveformAlfa: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/LUFS20_44100_ch2_birdsPink.wav'))
+tensorWaveformBeta: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/bass.wav'))
+tensorWaveformCharlie: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/drums.wav'))
+tensorWaveformDelta: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/mixture.wav'))
+tensorWaveformEcho: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/other.wav'))
+tensorWaveformFoxtrot: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/vocals.wav'))
+tensorWaveformGolf: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/bassBad.wav'))
+tensorWaveformHotel: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/bassGood.wav'))
+tensorWaveformIndia: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/drumsBad.wav'))
+tensorWaveformJuliet: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/drumsGood.wav'))
+tensorWaveformKilo: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/otherBad.wav'))
+tensorWaveformLima: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/otherGood.wav'))
+tensorWaveformMike: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/vocalsBad.wav'))
+tensorWaveformNovember: torch.Tensor = from_numpy(readAudioFile('tests/dataSamples/SpeakSoftly_BrokenMan60sec/vocalsGood.wav'))
+
+
+
+
+
+
+# NOTE This moronic crap is not what I want, but I'm tired of fighting the LLM. But clearly worse than the AI code are the unintelligible identifiers from the human-made code: 'recon_audio'? srsly?
+AIgarbage_target: torch.Tensor = torch.stack((torch.stack((tensorWaveformHotel, tensorWaveformJuliet, tensorWaveformLima, tensorWaveformNovember, tensorWaveformBeta, tensorWaveformCharlie))[..., :44100], torch.stack((tensorWaveformHotel, tensorWaveformJuliet, tensorWaveformLima, tensorWaveformNovember, tensorWaveformBeta, tensorWaveformCharlie))[..., 44100:88200]), dim=0)
+AIgarbage_recon_audio: torch.Tensor = torch.stack((torch.stack((tensorWaveformGolf, tensorWaveformIndia, tensorWaveformKilo, tensorWaveformMike, tensorWaveformBeta, tensorWaveformCharlie))[..., :44100], torch.stack((tensorWaveformGolf, tensorWaveformIndia, tensorWaveformFoxtrot, tensorWaveformEcho, tensorWaveformBeta, tensorWaveformCharlie))[..., 44100:88200]), dim=0)

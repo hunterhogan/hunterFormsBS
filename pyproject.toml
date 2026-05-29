@@ -50,13 +50,30 @@ Issues = "https://github.com/hunterhogan/hunterFormsBS/issues"
 Repository = "https://github.com/hunterhogan/hunterFormsBS.git"
 
 [dependency-groups]
-dev = ["pope-pytorch", "rotary-embedding-torch"]
+dev = [
+  "pope-pytorch",
+  "pytest-cov",
+  "rotary-embedding-torch",
+]
 pytorch = ["torch==2.10.0", "torchaudio==2.10.0"]
 testing = ["pytest"]
 
 [build-system]
 requires = ["uv_build>=0.11.8,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.coverage]
+report = { exclude_lines = [
+  "if TYPE_CHECKING:",
+  "if __name__ == \"__main__\":",
+], ignore_errors = false }
+run = { branch = true, concurrency = [
+  "multiprocessing",
+], data_file = "tests/coverage/.coverage", omit = [
+  "tests/*",
+], parallel = true, source = [
+  ".",
+] }
 
 [tool.updateCitation]
 filenameCitationDOTcff = "CITATION.cff"
