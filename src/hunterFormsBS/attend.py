@@ -249,7 +249,6 @@ class Attend(nn.Module):
 		if is_cuda and exists(self.cuda_config):
 			config = self.cuda_config
 
-		# pytorch 2.0 flash attn: q, k, v, mask, attn_dropout, softmax_scale
 		with torch.backends.cuda.sdp_kernel(**config._asdict()):  # pyright: ignore[reportDeprecated]
 			out: Tensor = F.scaled_dot_product_attention(q, k, v, dropout_p=self.attn_dropout if self.training else 0.0)
 
@@ -329,7 +328,6 @@ class Attend(nn.Module):
 		attention_weights = self.nn_Dropout(attention_weights)
 
 		# aggregate values
-
 		return einsum('b h i j, b h j d -> b h i d', attention_weights, v)
 
 class Attention(nn.Module):
@@ -392,17 +390,17 @@ class Attention(nn.Module):
 		https://context7.com/pytorch/pytorch
 	"""
 	def __init__(
-		self,
-		dim: int,
-		dim_head: int = 64,
-		attn_dropout: float = 0.0,
-		heads: int = 8,
-		pope_embed: PoPE | None = None,
-		rotary_embed: RotaryEmbedding | None = None,
-		scale: float | None = None,
-		*,
-		flash: bool = True,
-		sage_attention: bool = False,
+		self
+		, dim: int
+		, dim_head: int = 64
+		, attn_dropout: float = 0.0
+		, heads: int = 8
+		, pope_embed: PoPE | None = None
+		, rotary_embed: RotaryEmbedding | None = None
+		, scale: float | None = None
+		, *
+		, flash: bool = True
+		, sage_attention: bool = False,
 	) -> None:
 		"""Set up an attention block for a chosen width and head layout.
 
@@ -563,7 +561,6 @@ class Attention(nn.Module):
 		else:
 			out = self.attend(q, k, v)
 
-		# after attend
 		gates: Tensor = self.to_gates(x)
 		out *= rearrange(gates, 'b n h -> b h n 1').sigmoid()
 
