@@ -61,7 +61,7 @@ class FeedForward(Module):
 	[4] PyTorch.
 		https://context7.com/pytorch/pytorch
 	"""
-	def __init__(self, dim: int, ff_mult: float | None = 4.0, ff_dropout: float = 0.0) -> None:
+	def __init__(self, dim: int, ff_mult: float = 4.0, ff_dropout: float = 0.0) -> None:
 		"""Set up a position-wise feedforward block for feature width `dim`.
 
 		You can use `__init__` to choose the input and output feature width `dim`, the internal width
@@ -95,8 +95,6 @@ class FeedForward(Module):
 			https://context7.com/pytorch/pytorch
 		"""
 		super().__init__()
-		if ff_mult is None:
-			ff_mult = 4.0
 		dim_inner: int = int(dim * ff_mult)
 		self.net: nn.Sequential = nn.Sequential(
 			RMSNorm(dim), nn.Linear(dim, dim_inner), nn.GELU(), nn.Dropout(ff_dropout), nn.Linear(dim_inner, dim), nn.Dropout(ff_dropout)
@@ -161,22 +159,22 @@ class Transformer(Module):
 	[3] `FeedForward`
 	"""
 	def __init__(
-		self,
-		*,
-		depth: int,
-		attn_dropout: float = 0.0,
-		dim_head: int = 64,
-		dim: int,
-		ff_dropout: float = 0.0,
-		ff_mult: float | None = 4,
-		flash_attn: bool = True,
-		heads: int = 8,
-		linear_attn: bool = False,  # noqa: ARG002
-		norm_output: bool = True,
-		pope_embed: PoPE | None = None,
-		rotary_embed: RotaryEmbedding | None = None,
-		sage_attention: bool = False,
-		scale: float | None = None,
+		self
+		, *
+		, depth: int
+		, attn_dropout: float = 0.0
+		, dim_head: int = 64
+		, dim: int
+		, ff_dropout: float = 0.0
+		, ff_mult: float = 4
+		, flash_attn: bool = True
+		, heads: int = 8
+		, linear_attn: bool = False  # noqa: ARG002
+		, norm_output: bool = True
+		, pope_embed: PoPE | None = None
+		, rotary_embed: RotaryEmbedding | None = None
+		, sage_attention: bool = False
+		, scale: float | None = None
 	) -> None:
 		"""Set up a transformer stack for feature width `dim` and layer count `depth`.
 
@@ -258,15 +256,15 @@ class Transformer(Module):
 		super().__init__()
 
 		parametersAttention = ParametersAttention(
-			attn_dropout=attn_dropout,
-			dim_head=dim_head,
-			dim=dim,
-			flash=flash_attn,
-			heads=heads,
-			pope_embed=pope_embed,
-			rotary_embed=rotary_embed,
-			sage_attention=sage_attention,
-			scale=scale,
+			attn_dropout=attn_dropout
+			, dim_head=dim_head
+			, dim=dim
+			, flash=flash_attn
+			, heads=heads
+			, pope_embed=pope_embed
+			, rotary_embed=rotary_embed
+			, sage_attention=sage_attention
+			, scale=scale
 		)
 
 		self.layers = ModuleList(

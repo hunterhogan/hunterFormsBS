@@ -304,7 +304,7 @@ class ParametersTransformer(TypedDict):
 	dim_head: int
 	dim: int
 	ff_dropout: float
-	ff_mult: float | None
+	ff_mult: float
 	flash_attn: bool
 	heads: int
 	linear_attn: bool

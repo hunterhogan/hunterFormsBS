@@ -195,7 +195,7 @@ class BandSplitRotator(Module):
 		, dim_freqs_in: int = 1025  # noqa: ARG002
 		, dim_head: int = 64
 		, ff_dropout: float = 0.0
-		, ff_mult: float | None = None
+		, ff_mult: float = 4.0
 		, final_norm: bool | None = None
 		, flash_attn: bool = True
 		, freq_transformer_depth: int = 2
@@ -290,7 +290,7 @@ class BandSplitRotator(Module):
 			Per-head feature width for the downstream time-axis and frequency-axis attention blocks.
 		ff_dropout : float = 0.0
 			Dropout probability forwarded to each downstream feedforward block.
-		ff_mult : float | None = None
+		ff_mult : float = 4.0
 			Feedforward hidden-width expansion factor forwarded to downstream transformer blocks.
 			`None` keeps the downstream default.
 		final_norm : bool | None = None
