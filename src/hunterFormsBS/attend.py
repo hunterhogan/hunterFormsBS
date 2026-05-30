@@ -46,13 +46,14 @@ from PoPE_pytorch import flash_attn_with_pope, PoPE
 from torch import einsum, nn, Tensor
 from torch_einops_kit import exists, once
 from torch_einops_kit.scaleValues import RMSNorm
-from typing import Any, TYPE_CHECKING
+from typing import Any, cast, TYPE_CHECKING
 import torch
 import torch.nn.functional as F
 
 if TYPE_CHECKING:
 	from collections.abc import Callable
 	from rotary_embedding_torch import RotaryEmbedding
+	from torch._C import _CudaDeviceProperties
 
 print_once: Callable[..., Any] = once(print)
 
@@ -163,9 +164,10 @@ class Attend(nn.Module):
 		if not torch.cuda.is_available() or not self.flash:
 			return
 
-		device_properties = torch.cuda.get_device_properties(torch.device('cuda'))  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+		device_properties: _CudaDeviceProperties = torch.cuda.get_device_properties(torch.device('cuda'))  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+		device_properties = cast('_CudaDeviceProperties', device_properties)  # ty:ignore[redundant-cast]
 
-		if device_properties.major == 8 and device_properties.minor == 0:  # pyright: ignore[reportUnknownMemberType]
+		if device_properties.major == 8 and device_properties.minor == 0:
 			print_once('A100 GPU detected, using flash attention if input tensor is on cuda')
 			self.cuda_config = FlashAttentionConfig(enable_flash=True, enable_math=False, enable_mem_efficient=False)
 		else:
