@@ -28,21 +28,18 @@ def _discover_package_name() -> str:
 		warnings.warn(f"Multiple packages found in src: {packages}. Using '{packages[0]}' as the main package.", stacklevel=2)
 	return packages[0]
 
-
 @pytest.fixture(scope='session')
 def package_name() -> str:
 	return _discover_package_name()
 
-
 @pytest.fixture(scope='session')
 def package(package_name: str) -> ModuleType:
-	"""The imported top-level package."""
+	"""The imported top-level package."""  # noqa: DOC201
 	return importlib.import_module(package_name)
-
 
 @pytest.fixture(scope='session')
 def all_module_names(package_name: str) -> list[str]:
-	"""All module names in the package (including subpackages)."""
+	"""All module names in the package (including subpackages)."""  # noqa: DOC201
 	pkg = importlib.import_module(package_name)
 	modules = [package_name]
 	prefix = package_name + '.'
