@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from hunterHearsPy import readAudioFile
 from torch import from_numpy, tensor  # pyright: ignore[reportUnknownVariableType]
 from typing import TYPE_CHECKING
-from Z0Z_tools.ioAudio import readAudioFile
 import torch
 
 if TYPE_CHECKING:

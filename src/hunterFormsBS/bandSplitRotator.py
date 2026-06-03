@@ -35,6 +35,7 @@ from hunterFormsBS.loss import lossComputation
 from hunterFormsBS.mask import MaskEstimator
 from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersMaskEstimator, ParametersSTFT, ParametersTransformer
 from hunterFormsBS.transform import Transformer
+from hunterHearsPy import halfsineTensor
 from hunterMakesPy import raiseIfNone
 from more_itertools import loops
 from operator import mul
@@ -48,7 +49,6 @@ from torch_einops_kit.einops import pack_one, unpack_one
 from torch_einops_kit.scaleValues import RMSNorm
 from torchaudio.functional import melscale_fbanks
 from typing import cast, TYPE_CHECKING
-from Z0Z_tools import halfsineTensor
 import torch
 
 if TYPE_CHECKING:

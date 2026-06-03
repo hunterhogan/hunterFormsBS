@@ -20,5 +20,12 @@
 	],
 	"python.testing.pytestEnabled": true,
 	"python.testing.unittestEnabled": false,
-	"rewrap.wrappingColumn": 102
+	"rewrap.wrappingColumn": 102,
+	"python-envs.pythonProjects": [
+		{
+			"path": ".",
+			"envManager": "ms-python.python:venv",
+			"packageManager": "ms-python.python:pip"
+		}
+	]
 }

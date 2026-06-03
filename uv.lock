@@ -298,6 +298,7 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "einops" },
+    { name = "hunterhearspy" },
     { name = "huntermakespy" },
     { name = "more-itertools" },
     { name = "opt-einsum" },
@@ -307,7 +308,6 @@ dependencies = [
     { name = "torch" },
     { name = "torch-einops-kit" },
     { name = "torchaudio" },
-    { name = "z0z-tools" },
 ]
 
 [package.dev-dependencies]
@@ -327,6 +327,7 @@ testing = [
 [package.metadata]
 requires-dist = [
     { name = "einops", specifier = ">=0.8.2" },
+    { name = "hunterhearspy", specifier = ">=1.0.0" },
     { name = "huntermakespy" },
     { name = "more-itertools" },
     { name = "opt-einsum", specifier = ">=3.4.0" },
@@ -336,13 +337,12 @@ requires-dist = [
     { name = "torch", specifier = ">=2.0.0" },
     { name = "torch-einops-kit" },
     { name = "torchaudio", specifier = ">=2.0.0" },
-    { name = "z0z-tools" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pope-pytorch", git = "https://github.com/hunterhogan/PoPE-pytorch.git" },
-    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "pytest-cov" },
     { name = "rotary-embedding-torch", git = "https://github.com/hunterhogan/rotary-embedding-torch.git" },
 ]
 pytorch = [
@@ -350,6 +350,19 @@ pytorch = [
     { name = "torchaudio", specifier = "==2.10.0", index = "https://download.pytorch.org/whl/cu128", conflict = { package = "hunterformsbs", group = "pytorch" } },
 ]
 testing = [{ name = "pytest" }]
+
+[[package]]
+name = "hunterhearspy"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "resampy" },
+    { name = "scipy" },
+    { name = "soundfile" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f1/50/9884c537ac372aa94b80f450d5e0dd6f473cd07c22b0a5f9b8efa442cf29/hunterhearspy-1.0.0.tar.gz", hash = "sha256:1a7868bfd1bb77745d235d6ad91e1d1340f0542d4594ba14fc3a79fa5b0f1673", size = 23131, upload-time = "2026-06-02T16:47:09.39Z" }
 
 [[package]]
 name = "huntermakespy"
@@ -1100,17 +1113,3 @@ sdist = { url = "https://files.pythonhosted.org/packages/72/94/1a15dd82efb362ac8
 wheels = [
     { url = "https://files.pythonhosted.org/packages/18/67/36e9267722cc04a6b9f15c7f3441c2363321a3ea07da7ae0c0707beb2a9c/typing_extensions-4.15.0-py3-none-any.whl", hash = "sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548", size = 44614, upload-time = "2025-08-25T13:49:24.86Z" },
 ]
-
-[[package]]
-name = "z0z-tools"
-version = "1.0.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "huntermakespy" },
-    { name = "numpy" },
-    { name = "resampy" },
-    { name = "scipy" },
-    { name = "soundfile" },
-    { name = "tqdm" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/db/ec/a26d8ac2aaf10bbdb60d7b388b7e865765047f256b184f22ac4f38894954/z0z_tools-1.0.3.tar.gz", hash = "sha256:f72c5d2ac3a884f33d037ba682248d846405e6bcfe8d5ddda0c3488ae2190bb2", size = 38799, upload-time = "2026-05-10T21:12:03.777Z" }
