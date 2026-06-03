@@ -24,11 +24,11 @@ contact:
 - given-names: Hunter
   family-names: Hogan
   email: HunterHogan@pm.me
-date-released: '2026-05-26'
+date-released: '2026-06-03'
 identifiers:
 - type: url
-  value: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.2.0
-  description: The URL for hunterFormsBS 0.2.0.
+  value: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.3.0
+  description: The URL for hunterFormsBS 0.3.0.
 keywords:
 - artificial intelligence
 - audio source separation
@@ -37,8 +37,8 @@ keywords:
 license: CC-BY-NC-4.0
 message: Cite this software with the metadata in this file.
 repository: https://github.com/hunterhogan/hunterFormsBS.git
-repository-artifact: https://pypi.org/project/hunterformsbs/0.2.0/
-repository-code: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.2.0
+repository-artifact: https://pypi.org/project/hunterformsbs/0.3.0/
+repository-code: https://github.com/hunterhogan/hunterFormsBS/releases/tag/0.3.0
 title: hunterFormsBS
 url: https://github.com/hunterhogan/hunterFormsBS
-version: 0.2.0
+version: 0.3.0
