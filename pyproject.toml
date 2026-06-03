@@ -51,11 +51,11 @@ Repository = "https://github.com/hunterhogan/hunterFormsBS.git"
 
 [dependency-groups]
 dev = [
-  "pope-pytorch",
+  "pope-pytorch;sys_platform == 'win32'",
   "pytest-cov",
-  "rotary-embedding-torch",
+  "rotary-embedding-torch;sys_platform == 'win32'",
 ]
-pytorch = ["torch==2.10.0", "torchaudio==2.10.0"]
+pytorch = ["torch==2.10.0;sys_platform == 'win32'", "torchaudio==2.10.0;sys_platform == 'win32'"]
 testing = ["pytest"]
 
 [build-system]
