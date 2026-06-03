@@ -50,12 +50,11 @@ Issues = "https://github.com/hunterhogan/hunterFormsBS/issues"
 Repository = "https://github.com/hunterhogan/hunterFormsBS.git"
 
 [dependency-groups]
-dev = [
-  "pope-pytorch;sys_platform == 'win32'",
-  "pytest-cov",
-  "rotary-embedding-torch;sys_platform == 'win32'",
+dev = ["pytest-cov"]
+pytorch = [
+  "torch==2.10.0;sys_platform == 'win32'",
+  "torchaudio==2.10.0;sys_platform == 'win32'"
 ]
-pytorch = ["torch==2.10.0;sys_platform == 'win32'", "torchaudio==2.10.0;sys_platform == 'win32'"]
 testing = ["pytest"]
 
 [build-system]
@@ -63,17 +62,10 @@ requires = ["uv_build>=0.11.8,<0.12.0"]
 build-backend = "uv_build"
 
 [tool.coverage]
-report = { exclude_lines = [
-  "if TYPE_CHECKING:",
-  "if __name__ == \"__main__\":",
-], ignore_errors = false }
-run = { branch = true, concurrency = [
-  "multiprocessing",
-], data_file = "tests/coverage/.coverage", omit = [
-  "tests/*",
-], parallel = true, source = [
-  ".",
-] }
+report = { exclude_lines = ["if TYPE_CHECKING:", "if __name__ == \"__main__\":"], ignore_errors = false }
+run = { branch = true, concurrency = ["multiprocessing"], data_file = "tests/coverage/.coverage", omit = [
+  "tests/*"
+], parallel = true, source = ["."] }
 
 [tool.updateCitation]
 filenameCitationDOTcff = "CITATION.cff"
@@ -89,7 +81,5 @@ name = "indexPytorch"
 url = "https://download.pytorch.org/whl/cu128"
 
 [tool.uv.sources]
-pope-pytorch = { git = "https://github.com/hunterhogan/PoPE-pytorch.git", group = "dev" }
-rotary-embedding-torch = { git = "https://github.com/hunterhogan/rotary-embedding-torch.git", group = "dev" }
 torch = { index = "indexPytorch", group = "pytorch" }
 torchaudio = { index = "indexPytorch", group = "pytorch" }
