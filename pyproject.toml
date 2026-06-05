@@ -1,7 +1,7 @@
 [project]
 name = "hunterFormsBS"
 version = "0.3.0"
-description = "Flexible frequency-band splitter for music source separation. The BandSplitRoformer module supports BSRoformer, MelBandRoformer, and custom overlapping or non-overlapping band configurations. Fully typed, modular, and documented, including migration help, usage, and paper references. PyTorch; CUDA-accelerated."
+description = "Universal frequency-band splitter for music source separation. The BandSplitRoformer module supports BSRoformer, MelBandRoformer, and custom overlapping or non-overlapping band configurations. Fully typed, modular, and documented, including migration help, usage, and paper references. PyTorch; CUDA-accelerated."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "CC-BY-NC-4.0"
@@ -73,7 +73,7 @@ pathFilenameCitationSSOT = "citations/CITATION.cff"
 
 [tool.uv]
 build-backend = { module-name = "hunterFormsBS", module-root = "src" }
-default-groups = ["testing"]
+default-groups = ["dev", "testing"]
 
 [[tool.uv.index]]
 explicit = true

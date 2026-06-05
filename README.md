@@ -206,7 +206,11 @@ comparisons with upstream repos stay easy to read.
 - [BibTeX citation.](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/SU2024127063.bib) [TeX Source with precise formulas for AI agents.](https://arxiv.org/src/2104.09864)
 - DOI: [10.1016/j.neucom.2023.127063](https://doi.org/10.1016/j.neucom.2023.127063)
 - Free pre-print: [arXiv:2104.09864](https://arxiv.org/abs/2104.09864)
+- Original blog about the idea: [https://kexue.fm/archives/8265](https://kexue.fm/archives/8265)
+- An intuitive explanation: [https://blog.eleuther.ai/rotary-embeddings/](https://blog.eleuther.ai/rotary-embeddings/)
 - Implementations:
+  - [ZhuiyiTechnology/roformer](https://github.com/ZhuiyiTechnology/roformer)
+  - [ZhuiyiTechnology/roformer-v2](https://github.com/ZhuiyiTechnology/roformer-v2)
   - [lucidrains/rotary-embedding-torch](https://github.com/lucidrains/rotary-embedding-torch)
     - [context7](https://context7.com/lucidrains/rotary-embedding-torch)
   - [hunterhogan/rotary-embedding-torch](https://github.com/hunterhogan/rotary-embedding-torch)
