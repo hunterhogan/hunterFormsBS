@@ -123,7 +123,7 @@ def lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], mu
 		https://docs.pytorch.org/docs/stable/generated/torch.abs.html
 	"""
 	device: torch.device = recon_audio.device
-	# if a target is passed in, calculate loss for learning
+
 	if target.ndim == 2:
 		target = rearrange(target, '... t -> ... 1 t')
 

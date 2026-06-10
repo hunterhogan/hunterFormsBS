@@ -16,14 +16,14 @@ if TYPE_CHECKING:
 @pytest.mark.parametrize(
 	('recon_audio', 'target', 'stem_ids', 'multi_stft', 'return_loss_breakdown', 'expected'),
 	[
-		pytest.param(AIgarbage_recon_audio[:, [0]], AIgarbage_target, [0], multi_stft, False, 0.127830, id='var0-1stems-brkFalse'),
-		pytest.param(AIgarbage_recon_audio[:, [0]], AIgarbage_target, [0], multi_stft, True, (0.127830, (0.004918, 0.122911)), id='var0-1stems-brkTrue'),
-		pytest.param(AIgarbage_recon_audio[:, [0, 1]], AIgarbage_target, [0, 1], multi_stft, False, 0.217115, id='var0-2stems-brkFalse'),
-		pytest.param(AIgarbage_recon_audio[:, [0, 1]], AIgarbage_target, [0, 1], multi_stft, True, (0.217115, (0.006378, 0.210737)), id='var0-2stems-brkTrue'),
-		pytest.param(AIgarbage_recon_audio[:, [0, 1, 2, 3]], AIgarbage_target, [0, 1, 2, 3], multi_stft, False, 0.353176, id='var0-4stems-brkFalse'),
-		pytest.param(AIgarbage_recon_audio[:, [0, 1, 2, 3]], AIgarbage_target, [0, 1, 2, 3], multi_stft, True, (0.353176, (0.014863, 0.338313)), id='var0-4stems-brkTrue'),
-		pytest.param(AIgarbage_recon_audio[:, [0, 1, 2, 3, 4, 5]], AIgarbage_target, [0, 1, 2, 3, 4, 5], multi_stft, False, 0.235451, id='var0-6stems-brkFalse'),
-		pytest.param(AIgarbage_recon_audio[:, [0, 1, 2, 3, 4, 5]], AIgarbage_target, [0, 1, 2, 3, 4, 5], multi_stft, True, (0.235451, (0.009909, 0.225542)), id='var0-6stems-brkTrue'),
+		pytest.param(AIgarbage_recon_audio[:, [0]], AIgarbage_target, [0], multi_stft, False, 0.11148732900619507, id='var0-1stems-brkFalse'),
+		pytest.param(AIgarbage_recon_audio[:, [0]], AIgarbage_target, [0], multi_stft, True, (0.11148732900619507, (0.004918, 0.10656897723674774)), id='var0-1stems-brkTrue'),
+		pytest.param(AIgarbage_recon_audio[:, [0, 1]], AIgarbage_target, [0, 1], multi_stft, False, 0.18582287430763245, id='var0-2stems-brkFalse'),
+		pytest.param(AIgarbage_recon_audio[:, [0, 1]], AIgarbage_target, [0, 1], multi_stft, True, (0.18582287430763245, (0.006378, 0.1794450432062149)), id='var0-2stems-brkTrue'),
+		pytest.param(AIgarbage_recon_audio[:, [0, 1, 2, 3]], AIgarbage_target, [0, 1, 2, 3], multi_stft, False, 0.3108810782432556, id='var0-4stems-brkFalse'),
+		pytest.param(AIgarbage_recon_audio[:, [0, 1, 2, 3]], AIgarbage_target, [0, 1, 2, 3], multi_stft, True, (0.3108810782432556, (0.014863, 0.29601776599884033)), id='var0-4stems-brkTrue'),
+		pytest.param(AIgarbage_recon_audio[:, [0, 1, 2, 3, 4, 5]], AIgarbage_target, [0, 1, 2, 3, 4, 5], multi_stft, False, 0.2072540521621704, id='var0-6stems-brkFalse'),
+		pytest.param(AIgarbage_recon_audio[:, [0, 1, 2, 3, 4, 5]], AIgarbage_target, [0, 1, 2, 3, 4, 5], multi_stft, True, (0.2072540521621704, (0.009909, 0.19734516739845276)), id='var0-6stems-brkTrue'),
 	],
 )
 def test_lossComputation(recon_audio: Tensor, target: Tensor, stem_ids: list[int], multi_stft: ParametersComputeLoss, return_loss_breakdown: bool, expected: float | tuple[float, tuple[float, float]]) -> None:

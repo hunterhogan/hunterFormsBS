@@ -35,13 +35,12 @@ from hunterFormsBS.loss import lossComputation
 from hunterFormsBS.mask import MaskEstimator
 from hunterFormsBS.theTypes import ParametersComputeLoss, ParametersMaskEstimator, ParametersSTFT, ParametersTransformer
 from hunterFormsBS.transform import Transformer
-from hunterHearsPy import halfsineTensor
 from hunterMakesPy import raiseIfNone
 from more_itertools import loops
 from operator import mul
 from PoPE_pytorch import PoPE
 from rotary_embedding_torch import RotaryEmbedding
-from torch import arange, nn, repeat_interleave, tensor, Tensor
+from torch import arange, hann_window, nn, repeat_interleave, tensor, Tensor
 from torch.nn import Module, ModuleList
 from torch.utils.checkpoint import checkpoint  # pyright: ignore[reportUnknownVariableType]
 from torch_einops_kit import exists
@@ -212,7 +211,7 @@ class BandSplitRotator(Module):
 		, multi_stft_normalized: bool = False
 		, multi_stft_resolution_loss_weight: float = 1.0
 		, multi_stft_resolutions_window_sizes: tuple[int, ...] = (4096, 2048, 1024, 512, 256)
-		, multi_stft_window_fn: Callable[..., Tensor] = halfsineTensor
+		, multi_stft_window_fn: Callable[..., Tensor] = hann_window
 		, norm_output: bool | None = None
 		, num_bands: int | None = None
 		, num_stems: int = 1
@@ -253,7 +252,7 @@ class BandSplitRotator(Module):
 		, stft_n_fft: int = 2048
 		, stft_normalized: bool = False
 		, stft_win_length: int = 1024
-		, stft_window_fn: Callable[..., Tensor] = halfsineTensor
+		, stft_window_fn: Callable[..., Tensor] = hann_window
 		, time_transformer_depth: int = 2
 		, use_hyperACE: bool = False
 		, use_pope: bool = False

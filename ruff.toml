@@ -69,8 +69,6 @@ ignore = [
   "W292",
   # preview rules
   "CPY001",
-  "D420",
-  "DOC102",
   "E265",
   "E302",
   "E303",
