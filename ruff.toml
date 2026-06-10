@@ -17,9 +17,11 @@ allowed-confusables = [
   "𝕀",
   "ℓ",
   "ℒ",
+  "ℕ",
   "ℝ",
   "𝒮",
   "α",
+  "Β",
   "γ",
   "ρ",
   "σ",
@@ -80,6 +82,9 @@ ignore = [
 select = ["ALL"]
 task-tags = ["DEVELOPMENT", "NOTE", "SEMIOTICS", "TODO"]
 
+[lint.flake8-comprehensions]
+allow-dict-calls-with-keyword-arguments = true
+
 [lint.flake8-import-conventions]
 banned-aliases = { numpy = ["np"], pandas = ["pd"], regex = ["re"] }
 
@@ -99,7 +104,7 @@ inline-quotes = "single"
 
 [lint.per-file-ignores]
 "__init__.py" = ["PLC0414"]
-"*test*.py" = [
+"test*.py" = [
   "ARG",
   "BLE",
   "D",

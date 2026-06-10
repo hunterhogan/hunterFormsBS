@@ -28,6 +28,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
+  "analyzeaudio>=0.3.0",
   "einops>=0.8.2",
   "hunterHearsPy>=1.0.0",
   "hunterMakesPy",
