@@ -39,6 +39,7 @@ dependencies = [
   "torch-einops-kit",
   "torchaudio>=2.0.0",
 ]
+optional-dependencies = { testing = ["hunterHearsPy>=1.0.3", "pytest"] }
 
 [project.urls]
 Context7 = "https://context7.com/hunterhogan/hunterformsbs"
@@ -54,11 +55,10 @@ pytorch = [
   "torch==2.10.0;sys_platform == 'win32'",
   "torchaudio==2.10.0;sys_platform == 'win32'"
 ]
-testing = ["hunterHearsPy>=1.0.3", "pytest"]
 
 [build-system]
-requires = ["uv_build>=0.11.8,<0.12.0"]
-build-backend = "uv_build"
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
 [tool.coverage]
 report = { exclude_lines = ["if TYPE_CHECKING:", "if __name__ == \"__main__\":"], ignore_errors = false }

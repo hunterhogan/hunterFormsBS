@@ -55,6 +55,5 @@ jobs:
           python-version: ${{ matrix.tests-python-versions }}
           cache: pip
           cache-dependency-path: pyproject.toml
-
-      - run: pipx run uv sync --all-extras
-      - run: .venv/bin/python -m pytest
+      - run: pip install -e .[testing]
+      - run: pytest
