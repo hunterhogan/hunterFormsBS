@@ -34,12 +34,12 @@ def package_name() -> str:
 
 @pytest.fixture(scope='session')
 def package(package_name: str) -> ModuleType:
-	"""The imported top-level package."""  # noqa: DOC201
+	"""The imported top-level package."""
 	return importlib.import_module(package_name)
 
 @pytest.fixture(scope='session')
 def all_module_names(package_name: str) -> list[str]:
-	"""All module names in the package (including subpackages)."""  # noqa: DOC201
+	"""All module names in the package (including subpackages)."""
 	pkg = importlib.import_module(package_name)
 	modules = [package_name]
 	prefix = package_name + '.'
