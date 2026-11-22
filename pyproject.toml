@@ -57,8 +57,11 @@ pytorch = [
 ]
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["hunterFormsBS*"]
 
 [tool.coverage]
 report = { exclude_lines = ["if TYPE_CHECKING:", "if __name__ == \"__main__\":"], ignore_errors = false }
@@ -71,7 +74,6 @@ filenameCitationDOTcff = "CITATION.cff"
 pathFilenameCitationSSOT = "citations/CITATION.cff"
 
 [tool.uv]
-build-backend = { module-name = "hunterFormsBS", module-root = "src" }
 default-groups = ["dev", "testing"]
 
 [[tool.uv.index]]

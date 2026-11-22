@@ -1,4 +1,4 @@
-"""Zero-configuration conftest for src-layout projects."""
+"""Zero-configuration conftest for flat-layout projects."""
 
 from __future__ import annotations
 
@@ -13,19 +13,16 @@ if TYPE_CHECKING:
 	from types import ModuleType
 
 def _discover_package_name() -> str:
-	project_root = Path(__file__).resolve().parent.parent
-	src = project_root / 'src'
-	if not src.is_dir():
-		msg = f"'src' directory not found at {src}"
-		raise FileNotFoundError(msg)
+	pathTests = Path(__file__).resolve().parent
+	project_root = pathTests.parent
 
-	packages = [d.name for d in src.iterdir() if d.is_dir() and not d.name.startswith('.') and d.name != '__pycache__']
+	packages = sorted(d.name for d in project_root.iterdir() if d.is_dir() and d != pathTests and (d / '__init__.py').is_file())
 	if not packages:
-		msg = f'No Python packages found in {src}'
+		msg = f'No Python packages found in {project_root}'
 		raise FileNotFoundError(msg)
 
 	if len(packages) > 1:
-		warnings.warn(f"Multiple packages found in src: {packages}. Using '{packages[0]}' as the main package.", stacklevel=2)
+		warnings.warn(f"Multiple packages found in {project_root}: {packages}. Using '{packages[0]}' as the main package.", stacklevel=2)
 	return packages[0]
 
 @pytest.fixture(scope='session')

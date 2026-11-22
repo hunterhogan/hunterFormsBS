@@ -1,4 +1,4 @@
-"""Drop-in quality checks for any src-layout package."""
+"""Drop-in quality checks for any flat-layout package."""
 
 from __future__ import annotations
 
