@@ -52,7 +52,7 @@ Repository = "https://github.com/hunterhogan/hunterFormsBS.git"
 [dependency-groups]
 dev = ["pytest-cov"]
 pytorch = [
-  "torch==2.10.0;sys_platform == 'win32'",
+  "torch==2.13.0;sys_platform == 'win32'",
   "torchaudio==2.10.0;sys_platform == 'win32'"
 ]
 
