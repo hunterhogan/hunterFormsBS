@@ -1,9 +1,11 @@
+# path-sync copy -n shared
 name: Make GitHub Release
 
 on:
   workflow_run:
     workflows: ['Python Tests']
     types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
