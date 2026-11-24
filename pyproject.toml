@@ -50,12 +50,12 @@ Issues = "https://github.com/hunterhogan/hunterFormsBS/issues"
 Repository = "https://github.com/hunterhogan/hunterFormsBS.git"
 
 [dependency-groups]
-dev = ["pytest-cov"]
+dev = [{ include-group = "testing" }, "pytest-cov"]
 pytorch = ["torch==2.13.0;sys_platform == 'win32'", "torchaudio==2.10.0;sys_platform == 'win32'"]
 testing = ["hunterHearsPy>=1.4.0", "pytest"]
 
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools>=77.0.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.coverage]
@@ -315,8 +315,8 @@ indent-style = "tab"
 skip-magic-trailing-comma = true
 # === OK_EDIT: path-sync hunterhogan ===
 
-[tool.setuptools.packages.find]
-include = ["hunterFormsBS*"]
+[tool.setuptools]
+packages = { find = { include = ["hunterFormsBS", "hunterFormsBS.*"], namespaces = false } }
 
 # === DO_NOT_EDIT: path-sync hunterhogan ===
 [tool.tombi.format.rules]
