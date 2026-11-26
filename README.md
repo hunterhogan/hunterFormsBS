@@ -1,3 +1,4 @@
+<!-- path-sync copy -n hunterhogan -->
 # hunterFormsBS
 
 A flexible frequency-band splitter for music source separation, organized around a single separator family that can express BS-style, mel-style, and custom layouts.
@@ -5,7 +6,7 @@ A flexible frequency-band splitter for music source separation, organized around
 Instead of treating BS-style and mel-band layouts as separate Python entry points, this package treats them as different band-layout configurations of one core design centered on `BandSplitRotator`.
 
 [![pip install hunterFormsBS](https://img.shields.io/badge/pip_install-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
-[![uv add hunterFormsBS](https://img.shields.io/badge/uv_add-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
+[![pip install hunterFormsBS](https://img.shields.io/badge/pip_install-hunterFormsBS-gray.svg?labelColor=blue)](https://pypi.org/project/hunterFormsBS/)
 
 The codebase is implemented in PyTorch, fully typed (`py.typed`), and designed for modular reuse so options such as PoPE, custom filter banks, and optional SageAttention acceleration can live on one aligned constructor surface.
 
@@ -331,14 +332,15 @@ comparisons with upstream repos stay easy to read.
   - [context7](https://context7.com/hunterhogan/torch_einops_kit)
   - [BibTeX citation](https://github.com/hunterhogan/hunterFormsBS/blob/main/citations/Hogan_torch-einops-kit_2026.bib)
 
+<!-- === DO_NOT_EDIT: path-sync hunterhogan === -->
 ## My recovery
 
-[![Static Badge](https://img.shields.io/badge/2011_August-Homeless_since-blue?style=flat)](https://HunterThinks.com/support)
+[![2011 August: Homeless since](https://img.shields.io/badge/2011_August-Homeless_since-blue?style=flat)](https://HunterThinks.com/support)
+![License: CC BY-NC 4.0](https://img.shields.io/badge/license-CC%20BY--NC%204.0-blue.svg)
 
-[![CC-BY-NC-4.0](https://raw.githubusercontent.com/hunterhogan/hunterFormsBS/refs/heads/main/.github/CC-BY-NC-4.0.png)](https://creativecommons.org/licenses/by-nc/4.0/)
-
-By law, authors retain their copyrights unless they grant exceptions. The [Attribution-NonCommercial 4.0 International Deed](https://github.com/hunterhogan/hunterFormsBS#License-1-ov-file) outlines how you may use this work.
+By law, authors retain their copyrights unless they grant exceptions. The Creative Commons Attribution-NonCommercial 4.0 International Deed outlines how you may use this work.
 
 The restriction on commercial use (without a license) limits advantage-taking, unjust enrichment, and exploitation. You would be morally wrong if you were to enrich yourself by using this work while I am denied healthcare, housing, security of property, and the safety of my person.
 
 To obtain and retain the right to use this work, you incur the cost of attributing the work to me. Your nominal cost might accrue as a benefit that mitigates my suffering or saves my life.
+<!-- === OK_EDIT: path-sync hunterhogan === -->
